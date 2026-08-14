@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=72.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "3gpp-rag-chatbot"
+version = "0.1.0"
+description = "Production-quality RAG chatbot over 3GPP Release 17 5G Core Standards"
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+
+[tool.setuptools.packages.find]
+# Treat config/, ingestion/, retrieval/, api/, ui/ as importable packages.
+where = ["."]
+include = ["config*", "ingestion*", "retrieval*", "api*", "ui*"]
+
+# ── pytest ───────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"          # required by pytest-asyncio
+log_cli = true
+log_cli_level = "INFO"
+
+# ── ruff (optional linting – install with: pip install ruff) ─────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"

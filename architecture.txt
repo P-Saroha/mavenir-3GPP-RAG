@@ -1,0 +1,42 @@
+3GPP R17
+TS 23.501
+TS 23.502
+TS 23.503
+       ↓
+PDF extraction
+       ↓
+3GPP-aware structure parsing
+       ↓
+hierarchical chunks + metadata
+       ↓
+Qdrant
+ ┌───────────────┐
+ │ Dense vectors │ ← Nomic Embed
+ │ BM25 sparse   │
+ │ Metadata      │
+ └───────┬───────┘
+         ↓
+   Hybrid Retrieval
+         ↓
+        RRF
+         ↓
+    Top 20–30
+         ↓
+Cross-Encoder Reranker
+         ↓
+     Top 5–8
+         ↓
+Parent context expansion
+         ↓
+Evidence gate
+     /         \
+ enough       weak
+   ↓            ↓
+Grok /       ABSTAIN
+Ollama
+   ↓
+Grounded answer
+   ↓
+Citation validation
+   ↓
+Final answer + sources

@@ -1,0 +1,11 @@
+pymupdf
+sentence-transformers
+qdrant-client>=1.19.0
+rank-bm25
+fastapi
+uvicorn
+streamlit
+python-dotenv
+requests
+einops
+pytest
