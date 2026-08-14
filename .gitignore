@@ -1,6 +1,44 @@
+# ── virtual environments ──────────────────────────────────────────────────────
 .venv/
 myenv/
+
+# ── Python cache ──────────────────────────────────────────────────────────────
 __pycache__/
-.env
-qdrant_storage/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── environment / secrets ─────────────────────────────────────────────────────
+.env
+
+# ── data files (large / generated — not needed in repo) ──────────────────────
+data/pdfs/
+data/embeddings.npy
+data/embedding_ids.json
+data/embedding_cache.json
+data/bm25_cache.pkl
+data/parsed.jsonl
+data/chunks.jsonl
+data/chunk_stats.json
+data/pdf_report.json
+
+# ── Qdrant local storage ──────────────────────────────────────────────────────
+qdrant_storage/
+data/qdrant_storage/
+
+# ── pytest / test cache ───────────────────────────────────────────────────────
+.pytest_cache/
+.cache/
+htmlcov/
+.coverage
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
