@@ -11,6 +11,10 @@ XAI_MODEL    = os.getenv("XAI_MODEL", "grok-3")
 GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
 GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 GROQ_MODEL    = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+# ── LLM: Ollama local fallback ────────────────────────────────────────────────
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "mistral")
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-ai/nomic-embed-text-v1.5")
 RERANKER_MODEL = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L6-v2")
