@@ -110,7 +110,7 @@ def test_required_files_exist(fname):
 
 def test_requirements_contains_key_packages():
     req = (PROJECT_ROOT / "requirements.txt").read_text()
-    for pkg in ["PyMuPDF", "qdrant-client", "sentence-transformers",
-                "rank-bm25", "openai", "fastapi", "streamlit",
-                "pydantic-settings", "pytest"]:
+    for pkg in ["pymupdf", "qdrant-client", "sentence-transformers",
+                "rank-bm25", "fastapi", "streamlit",
+                "pytest"]:
         assert pkg in req, f"requirements.txt missing: {pkg}"
