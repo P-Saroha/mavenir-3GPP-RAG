@@ -1,0 +1,38 @@
+{
+  "description": "Ablation study over 28 answerable questions from data/eval_questions.json",
+  "evaluation_set": "data/eval_questions.json",
+  "n_questions": 28,
+  "note": "citation_accuracy is N/A for retrieval-only systems (A-E); it requires the full RAG pipeline (Task 23)",
+  "systems": {
+    "A_dense_only": {
+      "description": "Qdrant dense vector search (nomic-embed-text-v1.5), top-5",
+      "hit@5": 0.8571,
+      "mrr": 0.6232,
+      "citation_accuracy": "N/A"
+    },
+    "B_bm25_only": {
+      "description": "BM25Okapi sparse search (rank-bm25), top-5",
+      "hit@5": 0.4643,
+      "mrr": 0.2988,
+      "citation_accuracy": "N/A"
+    },
+    "C_hybrid_rrf": {
+      "description": "BM25 + dense, fused with Reciprocal Rank Fusion (k=60), top-5",
+      "hit@5": 0.6786,
+      "mrr": 0.4435,
+      "citation_accuracy": "N/A"
+    },
+    "D_hybrid_rerank": {
+      "description": "Hybrid RRF top-20, cross-encoder reranked (ms-marco-MiniLM-L6-v2), top-5",
+      "hit@5": 0.7500,
+      "mrr": 0.5726,
+      "citation_accuracy": "N/A"
+    },
+    "E_hybrid_rerank_mmr": {
+      "description": "Hybrid RRF top-20, reranked top-8, MMR diversity filter (lambda=0.5), top-5",
+      "hit@5": 0.7500,
+      "mrr": 0.5649,
+      "citation_accuracy": "N/A"
+    }
+  }
+}

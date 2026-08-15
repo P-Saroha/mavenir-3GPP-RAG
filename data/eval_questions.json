@@ -1,0 +1,242 @@
+[
+  {
+    "id": "arch_01",
+    "category": "architecture",
+    "question": "What network functions make up the 5G System architecture?",
+    "expected_spec": "23.501",
+    "expected_section": "4.2.2",
+    "expected_answer_summary": "The 5G System includes AUSF, AMF, DN, UDSF, NEF, NRF, NSACF, NSSAAF, NSSF, PCF, SMF, UDM, UPF, AF, NSSAAF, AUSF, and N3IWF among other functions listed in clause 4.2.2."
+  },
+  {
+    "id": "arch_02",
+    "category": "architecture",
+    "question": "How is the 5G architecture represented in TS 23.501?",
+    "expected_spec": "23.501",
+    "expected_section": "4.2.1",
+    "expected_answer_summary": "The 5G architecture is service-based and represented in two ways: a service-based representation where NFs expose services, and a reference point representation showing point-to-point interactions (e.g. N11 between AMF and SMF)."
+  },
+  {
+    "id": "arch_03",
+    "category": "architecture",
+    "question": "What interfaces appear in the non-roaming 5G System reference architecture?",
+    "expected_spec": "23.501",
+    "expected_section": "4.2.3",
+    "expected_answer_summary": "The non-roaming architecture (Figure 4.2.3-1) shows N1, N2, N3, N4, N6, N9 reference points and service-based interfaces Nnssf, Nnef, Nnrf, Npcf, Nudm, Nausf, Namf, Nsmf, Nnsacf, Neasdf between NFs in the Control Plane."
+  },
+  {
+    "id": "arch_04",
+    "category": "architecture",
+    "question": "What is the role of the UPF in the 5G user plane?",
+    "expected_spec": "23.501",
+    "expected_section": "6.2.3",
+    "expected_answer_summary": "The UPF provides anchor point for mobility, UE IP address allocation, external PDU Session interconnect to DN, packet routing and forwarding, packet inspection, policy enforcement, lawful intercept, QoS handling, uplink traffic verification, downlink packet buffering, and end-marker forwarding."
+  },
+  {
+    "id": "arch_05",
+    "category": "architecture",
+    "question": "How does the AMF discovery and selection work in 5G?",
+    "expected_spec": "23.501",
+    "expected_section": "6.3.5",
+    "expected_answer_summary": "AMF discovery and selection applies to both 3GPP and non-3GPP access. The 5G-AN (e.g. RAN, N3IWF) performs AMF selection to choose an AMF instance for a UE. An AMF can also trigger re-selection if the initially selected AMF is not appropriate (e.g. due to change of Allowed NSSAI)."
+  },
+  {
+    "id": "arch_06",
+    "category": "architecture",
+    "question": "What is AMF Load Balancing and how is it achieved?",
+    "expected_spec": "23.501",
+    "expected_section": "5.19.3",
+    "expected_answer_summary": "AMF Load Balancing directs UEs entering an AMF Region/Set to an appropriate AMF using a Weight Factor per AMF, such that the probability of an AMF being selected is proportional to its Weight Factor, which reflects that AMF's capacity relative to others."
+  },
+  {
+    "id": "arch_07",
+    "category": "architecture",
+    "question": "How does the 5G system support a UE registered simultaneously over 3GPP and non-3GPP access?",
+    "expected_spec": "23.501",
+    "expected_section": "5.3.2.4",
+    "expected_answer_summary": "For a given serving PLMN there is one RM context per access type. The UE provides its native 5G-GUTI for the other access during initial registration, enabling the AN to select an AMF that already holds the UE context created at the prior registration."
+  },
+  {
+    "id": "arch_08",
+    "category": "architecture",
+    "question": "What is the policy and charging control reference architecture in 5G as defined in TS 23.503?",
+    "expected_spec": "23.503",
+    "expected_section": "5.2.1",
+    "expected_answer_summary": "The PCC reference architecture for 5GS comprises PCF, SMF, UPF, AMF, NEF, NWDAF, CHF, AF, and UDR. Figure 5.2.1-1 shows the service-based representation and Figure 5.2.1-1a shows the reference-point representation of these interactions."
+  },
+  {
+    "id": "proc_01",
+    "category": "procedures",
+    "question": "What triggers a PDU Session establishment in 5G?",
+    "expected_spec": "23.502",
+    "expected_section": "4.3.2.1",
+    "expected_answer_summary": "PDU Session establishment can be triggered by: UE-initiated request, UE-initiated handover from 3GPP/non-3GPP or from EPS, or network-triggered (network sends a device trigger message to application on the UE side)."
+  },
+  {
+    "id": "proc_02",
+    "category": "procedures",
+    "question": "What are the main steps of UE-requested PDU Session Establishment for non-roaming?",
+    "expected_spec": "23.502",
+    "expected_section": "4.3.2.2.1",
+    "expected_answer_summary": "The UE generates a new PDU Session ID and sends a PDU Session Establishment Request in an N1 SM container to the AMF. The AMF selects the SMF, which selects the UPF, establishes an N4 session, and completes AN resource setup before sending Establishment Accept to the UE."
+  },
+  {
+    "id": "proc_03",
+    "category": "procedures",
+    "question": "What happens during secondary DN-AAA authentication in PDU Session establishment?",
+    "expected_spec": "23.502",
+    "expected_section": "4.3.2.3",
+    "expected_answer_summary": "The SMF optionally triggers DN-AAA authentication via UPF during PDU Session establishment. The DN-AAA Server authenticates/authorizes the UE and may provide an IP address and SM PDU DN Response Container. PDU Session establishment proceeds only after successful authentication."
+  },
+  {
+    "id": "proc_04",
+    "category": "procedures",
+    "question": "What does the General Registration procedure involve in TS 23.502?",
+    "expected_spec": "23.502",
+    "expected_section": "4.2.2.2.2",
+    "expected_answer_summary": "General Registration involves the UE sending a Registration Request to a new AMF, AMF selection, authentication/security with AUSF, identity checks via EIR, UDM selection for subscription data, PCF selection, and updating existing PDU Session SMF contexts via Nsmf_PDUSession_UpdateSMContext."
+  },
+  {
+    "id": "proc_05",
+    "category": "procedures",
+    "question": "How does 5GS to EPS handover using the N26 interface work?",
+    "expected_spec": "23.502",
+    "expected_section": "4.11.1.2.1",
+    "expected_answer_summary": "The source NG-RAN sends an HO Required message to the AMF including the target PLMN ID. The procedure follows Figure 4.11.1.2.1-1. For shared EPS networks, the source NG-RAN determines the target PLMN and indicates its ID to the AMF in the TAI of the HO Required message."
+  },
+  {
+    "id": "proc_06",
+    "category": "procedures",
+    "question": "What is the SMF-initiated SM Policy Association Modification procedure?",
+    "expected_spec": "23.502",
+    "expected_section": "4.16.5.1",
+    "expected_answer_summary": "When a Policy Control Request Trigger condition is met, the SMF sends Npcf_SMPolicyControl_Update to the PCF. The PCF makes a policy decision (optionally retrieves spending limits from CHF) and returns updated policy. For local breakout roaming, HPLMN interactions are not used."
+  },
+  {
+    "id": "proc_07",
+    "category": "procedures",
+    "question": "How does UE reachability management work when the UE is in CM-CONNECTED state?",
+    "expected_spec": "23.501",
+    "expected_section": "5.4.2",
+    "expected_answer_summary": "In CM-CONNECTED state, the AMF knows the UE location at serving (R)AN node granularity. NG-RAN notifies the AMF when the UE becomes unreachable. For UEs in RRC Inactive state, location is known at RAN Notification Area granularity and the UE is paged within that area."
+  },
+  {
+    "id": "proc_08",
+    "category": "procedures",
+    "question": "How does the 5G system support registration to a specific set of network slices?",
+    "expected_spec": "23.501",
+    "expected_section": "5.15.5.2.1",
+    "expected_answer_summary": "When a UE has a Configured or Allowed NSSAI, it sends a Requested NSSAI in the Registration Request. The network (via NSSF) verifies S-NSSAIs against the subscription and returns an Allowed NSSAI for the serving PLMN, along with a target AMF Set if re-selection is needed."
+  },
+  {
+    "id": "qos_01",
+    "category": "policy_qos",
+    "question": "What Policy Control Request Triggers are relevant for the SMF?",
+    "expected_spec": "23.503",
+    "expected_section": "6.1.3.5",
+    "expected_answer_summary": "The Policy Control Request Triggers for SMF define conditions when the SMF must interact again with the PCF after PDU Session establishment. They include access-independent triggers listed in Table 6.1.3.5-1, such as PLMN change, QoS change, location change, and charging-related events."
+  },
+  {
+    "id": "qos_02",
+    "category": "policy_qos",
+    "question": "What session management functionality does the PCF provide per TS 23.503?",
+    "expected_spec": "23.503",
+    "expected_section": "6.2.1.1.1",
+    "expected_answer_summary": "The PCF provides PCC for service data flows, PDU Session-related policy control, and PDU Session event reporting to the AF. It provides authorized QoS for SDFs including gating, redirection, and charging control (except credit management), based on AF service information."
+  },
+  {
+    "id": "qos_03",
+    "category": "policy_qos",
+    "question": "How does the SMF interact with the PCF and CHF?",
+    "expected_spec": "23.501",
+    "expected_section": "5.8.2.6.1",
+    "expected_answer_summary": "The SMF interacts with CHF and PCF based on information from other CP NFs and UPF user plane data. QoS flow and PDU Session level information stays at the SMF; only usage reports are requested from UPF. The SMF invokes Npcf_SMPolicyControl and Nchf_ConvergedCharging services."
+  },
+  {
+    "id": "qos_04",
+    "category": "policy_qos",
+    "question": "What SMF selection management policies can the PCF provide?",
+    "expected_spec": "23.503",
+    "expected_section": "4.2.5",
+    "expected_answer_summary": "The PCF may provide SMF selection management policies to the AMF, including policies for DNN replacement of specific DNNs, and policies instructing the AMF to contact the PCF before performing SMF selection for certain PDU Sessions."
+  },
+  {
+    "id": "qos_05",
+    "category": "policy_qos",
+    "question": "What are the three SSC modes in 5G and how do they differ?",
+    "expected_spec": "23.501",
+    "expected_section": "5.6.9.1",
+    "expected_answer_summary": "SSC mode 1: network preserves connectivity and IP address. SSC mode 2: network may release the PDU Session and instruct UE to establish a new one immediately, enabling a new UPF anchor. SSC mode 3: a new anchor is established before the old one is released, ensuring no connectivity loss."
+  },
+  {
+    "id": "cross_01",
+    "category": "cross_document",
+    "question": "How does the PDU Session concept in TS 23.501 relate to the establishment procedure in TS 23.502?",
+    "expected_spec": "23.501",
+    "expected_section": "5.6.1",
+    "expected_answer_summary": "TS 23.501 §5.6.1 defines the PDU Connectivity Service concept: PDU Sessions exchange PDUs between a UE and a DN identified by a DNN. TS 23.502 §4.3.2 specifies the signalling procedures that establish and manage those sessions, including UE-initiated, network-triggered, and handover variants."
+  },
+  {
+    "id": "cross_02",
+    "category": "cross_document",
+    "question": "How do the NSSAI definitions in TS 23.501 apply during the SMF Policy Association procedures in TS 23.503?",
+    "expected_spec": "23.501",
+    "expected_section": "5.15.2.1",
+    "expected_answer_summary": "TS 23.501 §5.15.2.1 defines S-NSSAI as comprising SST and optional SD to identify a Network Slice. TS 23.503 §6.1.3.5 uses the S-NSSAI as a key parameter in Policy Control Request Triggers, enabling the PCF to apply slice-specific policies during SM Policy Association Modification."
+  },
+  {
+    "id": "cross_03",
+    "category": "cross_document",
+    "question": "What is the relationship between AMF functions defined in TS 23.501 and the registration procedure in TS 23.502?",
+    "expected_spec": "23.501",
+    "expected_section": "4.2.2",
+    "expected_answer_summary": "TS 23.501 §4.2.2 lists AMF as a core NF responsible for access and mobility management. TS 23.502 §4.2.2.2.2 operationalises this: the General Registration procedure involves the AMF performing authentication (with AUSF), subscription retrieval (with UDM), and PDU Session context updates (with SMF)."
+  },
+  {
+    "id": "cross_04",
+    "category": "cross_document",
+    "question": "How does SSC mode 2 as defined in TS 23.501 affect the PDU Session establishment procedure in TS 23.502?",
+    "expected_spec": "23.501",
+    "expected_section": "5.6.9.2.2",
+    "expected_answer_summary": "TS 23.501 §5.6.9.2.2 defines SSC mode 2: the network can release the current PDU Session and instruct the UE to establish a new one immediately, enabling selection of a new UPF anchor. TS 23.502 §4.3.2 provides the signalling for the resulting UE-initiated re-establishment procedure."
+  },
+  {
+    "id": "term_01",
+    "category": "terminology",
+    "question": "What is an S-NSSAI and what does it comprise?",
+    "expected_spec": "23.501",
+    "expected_section": "5.15.2.1",
+    "expected_answer_summary": "An S-NSSAI (Single Network Slice Selection Assistance Information) identifies a Network Slice. It comprises a mandatory Slice/Service Type (SST) indicating expected behaviour, and an optional Slice Differentiator (SD) that distinguishes multiple slices of the same SST."
+  },
+  {
+    "id": "term_02",
+    "category": "terminology",
+    "question": "What is the definition of a 5G VN Group?",
+    "expected_spec": "23.501",
+    "expected_section": "3.1",
+    "expected_answer_summary": "A 5G VN Group is a set of UEs using private communication for 5G LAN-type service, as defined in the Definitions clause of TS 23.501."
+  },
+  {
+    "id": "term_03",
+    "category": "terminology",
+    "question": "What is SSC mode 3 in 5G PDU Session context?",
+    "expected_spec": "23.501",
+    "expected_section": "5.6.9.2.3",
+    "expected_answer_summary": "SSC mode 3 allows the network to establish UE connectivity via a new PDU Session Anchor before releasing the existing anchor, ensuring no loss of connectivity. It applies only to IP PDU Session types in Release 17."
+  },
+  {
+    "id": "unans_01",
+    "category": "unanswerable",
+    "question": "What is the maximum theoretical speed of 6G networks?",
+    "expected_spec": null,
+    "expected_section": null,
+    "expected_answer_summary": "This question is outside the scope of the 3GPP Release 17 5G Core specifications (TS 23.501/502/503). The corpus contains no information about 6G."
+  },
+  {
+    "id": "unans_02",
+    "category": "unanswerable",
+    "question": "How do I configure a Cisco router for BGP routing?",
+    "expected_spec": null,
+    "expected_section": null,
+    "expected_answer_summary": "This question is outside the scope of the 3GPP Release 17 5G Core specifications. The corpus contains no information about Cisco router configuration or BGP."
+  }
+]
