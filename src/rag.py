@@ -112,7 +112,19 @@ def answer_question(query: str) -> dict:
     # ── 6. LLM generation ─────────────────────────────────────────────────────
     client = _get_client()
     system_msg = _system_prompt(list(source_map.keys()))
-    user_msg = f"Question: {query}\n\nEvidence:\n{evidence_str}"
+    
+    # Build user message with clearer structure
+    user_msg = f"""Question: {query}
+
+Evidence from 3GPP Release 17 specifications:
+{evidence_str}
+
+Please provide a comprehensive, well-structured answer that:
+1. Directly answers the question
+2. Cites EVERY sentence with [SX] format
+3. Organizes information logically in paragraphs
+4. Uses only the evidence provided above
+5. Maintains technical accuracy"""
     
     print(f"[DEBUG] System prompt: {system_msg[:200]}...")
     print(f"[DEBUG] Source IDs available: {list(source_map.keys())}")

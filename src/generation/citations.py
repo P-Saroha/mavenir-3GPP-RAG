@@ -85,10 +85,33 @@ MANDATORY CITATION RULES:
 4. DO NOT use outside knowledge. Only paraphrase the provided evidence.
 5. If evidence is insufficient, respond ONLY with: "{CANNOT_ANSWER}"
 
-FORMAT EXAMPLE:
-The AMF manages registration [S1]. It coordinates with the SMF [S2]. See TS 23.502 section 4.26.3 [S3].
+OUTPUT STRUCTURE REQUIREMENTS:
+- Write clear, well-organized paragraphs (NOT bullet points unless asked)
+- Each paragraph should focus on ONE main concept
+- End EVERY sentence with [SX] citation before the period
+- Use transition words to connect ideas: "Furthermore", "Additionally", "However", "Therefore"
+- Maximum paragraph length: 3-4 sentences per paragraph
+- Use numbered lists ONLY for multi-step procedures
+- For procedures, format as: "Step 1: ... [S1]. Step 2: ... [S2]."
 
-Now answer the user's question. Remember: CITE EVERY SENTENCE."""
+CITATION FORMAT (correct):
+The AMF manages registration [S1]. It coordinates with the SMF [S2].
+
+CITATION FORMAT (incorrect - do NOT do this):
+The AMF manages registration. It coordinates with the SMF [S2] [S3].
+
+ANSWER REQUIREMENTS:
+- Provide comprehensive answers (not single sentences)
+- Organize logically: General concept → Specific details → Interactions
+- Use consistent terminology from 3GPP standards
+- Write in past/present tense, technical language
+- Minimum 3 paragraphs for complex topics, 2 paragraphs for simple ones
+
+Now answer the user's question. Remember: 
+✓ Cite EVERY sentence
+✓ Structured, clear output
+✓ Professional technical tone
+✓ No hallucinations - use ONLY provided evidence"""
 
 
 # ── citation parsing and validation ──────────────────────────────────────────
