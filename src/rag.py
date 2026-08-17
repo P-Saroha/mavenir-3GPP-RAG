@@ -124,7 +124,7 @@ def answer_question(query: str) -> dict:
             {"role": "user",   "content": user_msg},
         ],
         temperature=0.0,
-        max_tokens=1024,
+        max_tokens=2048,  # Increased from 1024 to allow longer answers
     )
     raw_answer = response.choices[0].message.content.strip()
     print(f"[DEBUG] Raw LLM answer: {raw_answer[:200]}...")
@@ -158,8 +158,6 @@ def answer_question(query: str) -> dict:
                 sid = available_ids[sent_idx % len(available_ids)]
                 cited_parts.append(f"{sent} [{sid}]{punct}")
                 sent_idx += 1
-            else:
-                cited_parts.append(punct)
         
         raw_answer = "".join(cited_parts)
         print(f"[DEBUG] Auto-cited answer: {raw_answer[:300]}...")
