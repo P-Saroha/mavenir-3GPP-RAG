@@ -7,10 +7,14 @@ Minimal Qdrant helpers:
   - health_check()      returns True when Qdrant is reachable
 """
 
+import logging
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 
 from src.utils.config import QDRANT_URL
+
+_log = logging.getLogger(__name__)
 
 COLLECTION_NAME = "3gpp_r17"
 

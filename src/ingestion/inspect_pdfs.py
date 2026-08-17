@@ -45,7 +45,6 @@ def inspect_pdf(pdf_path: Path) -> dict:
 
         # collect heading examples (up to 20 total)
         if len(all_headings) < 20:
-            matches = HEADING_RE.findall(text)
             for m in HEADING_RE.finditer(text):
                 if len(all_headings) < 20:
                     all_headings.append(m.group().strip())

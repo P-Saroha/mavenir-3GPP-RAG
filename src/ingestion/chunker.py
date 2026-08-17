@@ -21,9 +21,9 @@ Usage:
     python -m src.ingestion.chunker 23.501       # one spec only
 """
 
+import hashlib
 import json
 import sys
-import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -31,7 +31,7 @@ from pathlib import Path
 TARGET_WORDS = 450      # aim for this many words per chunk
 MAX_WORDS = 700         # hard ceiling before we force a split
 OVERLAP_WORDS = 50      # words of overlap when splitting large sections
-MIN_WORDS = 40          # sections below this are merged into neighbours
+MIN_WORDS = 5           # only merge if truly tiny (was 40 — caused section identity loss)
 
 INPUT_PATH = Path("data/parsed.jsonl")
 OUTPUT_PATH = Path("data/chunks.jsonl")
@@ -52,7 +52,15 @@ class Chunk:
     text: str
 
 
+def _chunk_id(spec: str, section: str, page_start: int, text: str, offset: int = 0) -> str:
+    """Deterministic chunk ID — same content always gets the same ID.
+    Includes word offset so split sub-chunks of the same section get distinct IDs."""
+    key = f"{spec}|{section}|{page_start}|{offset}|{text[:80]}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+
+
 def _words(text: str) -> int:
+    return len(text.split())
     return len(text.split())
 
 
@@ -64,8 +72,11 @@ def _split_large(section: dict, target: int, overlap: int) -> list[Chunk]:
     while start < len(words):
         end = min(start + target, len(words))
         chunk_text = " ".join(words[start:end])
+        header = f"[{section['spec']} §{section['section']} — {section['section_title']}]"
+        txt = f"{header}\n{chunk_text}"
         chunks.append(Chunk(
-            chunk_id=str(uuid.uuid4()),
+            chunk_id=_chunk_id(section["spec"], section["section"],
+                               section["page_start"], txt, offset=start),
             spec=section["spec"],
             release=section["release"],
             version=section["version"],
@@ -74,7 +85,7 @@ def _split_large(section: dict, target: int, overlap: int) -> list[Chunk]:
             parent_section=section["parent_section"],
             page_start=section["page_start"],
             page_end=section["page_end"],
-            text=chunk_text,
+            text=txt,
         ))
         if end == len(words):
             break
@@ -86,10 +97,12 @@ def _make_chunk(sections: list[dict]) -> Chunk:
     """Merge a list of sections into a single chunk."""
     first = sections[0]
     last = sections[-1]
-    # Use the title of the first (usually the parent) section
-    combined_text = "\n\n".join(s["text"] for s in sections if s["text"].strip())
+    # Prefix with section header so the reranker can match section-specific queries
+    header = f"[{first['spec']} §{first['section']} — {first['section_title']}]"
+    body = "\n\n".join(s["text"] for s in sections if s["text"].strip())
+    combined_text = f"{header}\n{body}"
     return Chunk(
-        chunk_id=str(uuid.uuid4()),
+        chunk_id=_chunk_id(first["spec"], first["section"], first["page_start"], combined_text, offset=0),
         spec=first["spec"],
         release=first["release"],
         version=first["version"],
@@ -160,7 +173,7 @@ def chunk_sections(sections: list[dict]) -> list[Chunk]:
                 s["text"] for s in bucket if s["text"].strip()
             )
             chunks[-1] = Chunk(
-                chunk_id=prev.chunk_id,
+                chunk_id=_chunk_id(prev.spec, prev.section, prev.page_start, merged_text, offset=0),
                 spec=prev.spec, release=prev.release, version=prev.version,
                 section=prev.section, section_title=prev.section_title,
                 parent_section=prev.parent_section,

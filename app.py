@@ -30,6 +30,38 @@ st.caption(
 )
 st.divider()
 
+# ── PDF upload section ─────────────────────────────────────────────────────────
+st.markdown("### 📄 Add New PDF to Corpus")
+uploaded_file = st.file_uploader(
+    "Upload a 3GPP specification PDF",
+    type=["pdf"],
+    help="Upload a new PDF to expand the knowledge corpus. "
+         "The system will automatically parse, chunk, embed, and index it.",
+)
+
+if uploaded_file is not None:
+    import shutil
+    from pathlib import Path
+
+    pdf_dir = Path("data/pdfs")
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = pdf_dir / uploaded_file.name
+
+    # Save uploaded file
+    with open(pdf_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+
+    st.success(f"✓ Uploaded: {uploaded_file.name} ({pdf_path})")
+    st.info(
+        "Next steps:\n\n"
+        "1. Open terminal and run:\n"
+        "   `python -m src.ingestion.ingest`\n\n"
+        "2. Wait for parsing → chunking → embedding → indexing\n\n"
+        "3. Restart the Streamlit app (F5) to use the updated corpus"
+    )
+
+st.divider()
+
 # ── question input ─────────────────────────────────────────────────────────────
 question = st.text_input(
     "Your question",

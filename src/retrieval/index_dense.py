@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import json
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -39,7 +40,11 @@ IDS_PATH = Path("data/embedding_ids.json")
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-def get_client() -> QdrantClient:
+def _point_id(chunk_id: str) -> str:
+    """Convert a hex chunk_id to a UUID string for Qdrant.
+    Deterministic: same chunk always maps to the same Qdrant point ID."""
+    # chunk_id is a 32-char hex string — pad to 32 bytes for UUID
+    return str(uuid.UUID(chunk_id.ljust(32, "0")[:32]))
     return QdrantClient(url=QDRANT_URL)
 
 
@@ -74,12 +79,16 @@ def load_data(limit: int | None = None) -> tuple[list[dict], np.ndarray, list[st
 
 def index(client: QdrantClient, chunks_by_id: dict, embeddings: np.ndarray,
           emb_ids: list[str]) -> int:
-    """Upload all points in batches. Returns total points stored."""
+    """
+    Upsert chunks into Qdrant using deterministic UUID point IDs.
+    Chunks already in the collection are skipped (upsert is idempotent).
+    Returns number of points uploaded this run.
+    """
     points = []
     for i, chunk_id in enumerate(emb_ids):
         c = chunks_by_id[chunk_id]
         points.append(PointStruct(
-            id=i,                          # integer id required by Qdrant
+            id=_point_id(chunk_id),        # deterministic UUID, not row index
             vector=embeddings[i].tolist(),
             payload={
                 "chunk_id":      c["chunk_id"],
@@ -95,11 +104,10 @@ def index(client: QdrantClient, chunks_by_id: dict, embeddings: np.ndarray,
             },
         ))
 
-    # upload in batches
     for start in range(0, len(points), BATCH_SIZE):
         batch = points[start: start + BATCH_SIZE]
         client.upsert(collection_name=COLLECTION_NAME, points=batch)
-        print(f"  uploaded {min(start + BATCH_SIZE, len(points))}/{len(points)}", end="\r")
+        print(f"  upserted {min(start + BATCH_SIZE, len(points))}/{len(points)}", end="\r")
 
     print()
     return len(points)

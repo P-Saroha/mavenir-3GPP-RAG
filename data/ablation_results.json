@@ -28,11 +28,18 @@
       "mrr": 0.5726,
       "citation_accuracy": "N/A"
     },
-    "E_hybrid_rerank_mmr": {
-      "description": "Hybrid RRF top-20, reranked top-8, MMR diversity filter (lambda=0.5), top-5",
+    "E_hybrid_rerank_mmr_v1": {
+      "description": "Hybrid RRF top-20, reranked top-8, MMR (lambda=0.5) top-5 — original pipeline",
       "hit@5": 0.7500,
       "mrr": 0.5649,
       "citation_accuracy": "N/A"
+    },
+    "F_hybrid_rerank_mmr_v2": {
+      "description": "Hybrid RRF top-30, reranked top-10, MMR top-6 + section-prefix BM25 + dedup sources — improved pipeline",
+      "hit@5": 0.7143,
+      "mrr": 0.5637,
+      "citation_accuracy": "N/A",
+      "note": "Hit@5 slightly lower due to cross_01 at rank 6; answer quality improved via dedup sources and section-prefix BM25"
     }
   }
 }

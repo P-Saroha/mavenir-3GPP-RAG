@@ -16,12 +16,16 @@ Usage:
 
 from __future__ import annotations
 
+import logging
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from sentence_transformers import SentenceTransformer
 
 from src.utils.config import QDRANT_URL, EMBEDDING_MODEL
 from src.retrieval.index_dense import COLLECTION_NAME
+
+_log = logging.getLogger(__name__)
 
 QUERY_PREFIX = "search_query: "
 
@@ -33,7 +37,7 @@ _client: QdrantClient | None = None
 def _get_model() -> SentenceTransformer:
     global _model
     if _model is None:
-        print(f"Loading embedding model: {EMBEDDING_MODEL}")
+        _log.info("Loading embedding model: %s", EMBEDDING_MODEL)
         _model = SentenceTransformer(EMBEDDING_MODEL, trust_remote_code=True)
     return _model
 

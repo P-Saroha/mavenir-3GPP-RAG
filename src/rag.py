@@ -33,15 +33,14 @@ from src.generation.citations import (
     build_sourced_evidence,
     _system_prompt,
     validate_citations,
-    CITATION_RE,
 )
 from src.generation.grok import _get_client, ACTIVE_MODEL, CANNOT_ANSWER
 
 # ── pipeline constants ────────────────────────────────────────────────────────
-HYBRID_TOP_K  = 20   # candidates from each retriever
-RERANK_TOP_K  = 8    # after cross-encoder
-MMR_TOP_K     = 5    # after MMR diversity filter
-MAX_EVIDENCE_WORDS = 3000
+HYBRID_TOP_K  = 30   # candidates from each retriever (balanced: more recall, less noise)
+RERANK_TOP_K  = 10   # after cross-encoder (increased from 8 for better diversity)
+MMR_TOP_K     = 6    # after MMR diversity filter (increased from 5)
+MAX_EVIDENCE_WORDS = 3500  # slightly increased to accommodate extra source
 
 
 def _build_expanded_evidence(mmr_chunks: list[dict]) -> tuple[str, dict]:
@@ -123,9 +122,18 @@ def answer_question(query: str) -> dict:
     # ── 7. Citation validation ─────────────────────────────────────────────────
     clean_answer, valid_citations, _ = validate_citations(raw_answer, source_map)
 
+    # ── 8. Deduplicate sources by (spec, section) — keep first occurrence ──────
+    seen_sections: set[tuple] = set()
+    deduped_citations = []
+    for src in valid_citations:
+        key = (src.get("spec"), src.get("section"))
+        if key not in seen_sections:
+            seen_sections.add(key)
+            deduped_citations.append(src)
+
     return {
         "answer":    clean_answer,
-        "sources":   valid_citations,
+        "sources":   deduped_citations,
         "supported": True,
     }
 

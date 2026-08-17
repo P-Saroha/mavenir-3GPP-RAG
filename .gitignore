@@ -1,6 +1,9 @@
 # ── virtual environments ──────────────────────────────────────────────────────
 .venv/
 myenv/
+venv/
+env/
+ENV/
 
 # ── Python cache ──────────────────────────────────────────────────────────────
 __pycache__/
@@ -8,9 +11,15 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+*.egg-info/
+dist/
+build/
+*.egg
 
-# ── environment / secrets ─────────────────────────────────────────────────────
+# ── environment / secrets (DO NOT commit) ─────────────────────────────────────
 .env
+.env.local
+.env.*.local
 
 # ── data files (large / generated — not needed in repo) ──────────────────────
 data/pdfs/
@@ -22,8 +31,11 @@ data/parsed.jsonl
 data/chunks.jsonl
 data/chunk_stats.json
 data/pdf_report.json
+data/retrieval_results.json
+data/answer_results.json
+data/ablation_results.json
 
-# ── Qdrant local storage ──────────────────────────────────────────────────────
+# ── Qdrant local storage (generated at runtime) ────────────────────────────────
 qdrant_storage/
 data/qdrant_storage/
 
@@ -32,13 +44,40 @@ data/qdrant_storage/
 .cache/
 htmlcov/
 .coverage
+.coverage.*
+coverage.xml
 
-# ── IDE ───────────────────────────────────────────────────────────────────────
+# ── IDE / editor ──────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.suo
 *.user
-
-# ── OS ───────────────────────────────────────────────────────────────────────
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
+
+# ── Temporary / debug files ───────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*.swp
+_*.py
+test_*.py
+debug_*.py
+
+# ── Jupyter notebooks (if any) ────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── OS generated files ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.directory
+
+# ── Misc generated files ──────────────────────────────────────────────────────
+*.pkl
+*.pickle
+*.json.bak
+*.jsonl.bak

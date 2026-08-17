@@ -11,11 +11,14 @@ Usage:
 """
 
 import json
+import logging
 import pickle
 import re
 from pathlib import Path
 
 from rank_bm25 import BM25Okapi
+
+_log = logging.getLogger(__name__)
 
 CHUNKS_PATH = Path("data/chunks.jsonl")
 CACHE_PATH  = Path("data/bm25_cache.pkl")   # stores (chunks, bm25 index)
@@ -33,7 +36,9 @@ def tokenize(text: str) -> list[str]:
 # ── index build / load ────────────────────────────────────────────────────────
 
 def _build_index(chunks: list[dict]) -> BM25Okapi:
-    corpus = [tokenize(c["text"]) for c in chunks]
+    # Prepend the section number to the tokenized text so queries that
+    # mention a section number (e.g. "4.3.2.2.1") get a stronger signal.
+    corpus = [tokenize(f"section {c['section']} {c['text']}") for c in chunks]
     return BM25Okapi(corpus)
 
 
@@ -45,15 +50,15 @@ def load_index() -> tuple[list[dict], BM25Okapi]:
     if CACHE_PATH.exists():
         with CACHE_PATH.open("rb") as f:
             chunks, index = pickle.load(f)
-        print(f"BM25 index loaded from cache ({len(chunks)} chunks)")
+        _log.info("BM25 index loaded from cache (%d chunks)", len(chunks))
         return chunks, index
 
-    print("Building BM25 index ...")
+    _log.info("Building BM25 index ...")
     chunks = [json.loads(l) for l in CHUNKS_PATH.read_text(encoding="utf-8").splitlines()]
     index  = _build_index(chunks)
     with CACHE_PATH.open("wb") as f:
         pickle.dump((chunks, index), f)
-    print(f"BM25 index built and cached ({len(chunks)} chunks)")
+    _log.info("BM25 index built and cached (%d chunks)", len(chunks))
     return chunks, index
 
 

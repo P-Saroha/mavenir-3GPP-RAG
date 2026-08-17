@@ -14,10 +14,14 @@ Usage:
 
 from __future__ import annotations
 
+import logging
+
 from sentence_transformers import CrossEncoder
 
 from src.utils.config import RERANKER_MODEL
 from src.retrieval.hybrid import hybrid_search
+
+_log = logging.getLogger(__name__)
 
 RERANK_INPUT_K  = 20   # candidates fed to the reranker
 RERANK_OUTPUT_K = 8    # results returned after reranking
@@ -29,7 +33,7 @@ _reranker: CrossEncoder | None = None
 def _get_reranker() -> CrossEncoder:
     global _reranker
     if _reranker is None:
-        print(f"Loading reranker model: {RERANKER_MODEL}")
+        _log.info("Loading reranker model: %s", RERANKER_MODEL)
         _reranker = CrossEncoder(RERANKER_MODEL)
     return _reranker
 

@@ -160,11 +160,28 @@ def main():
         print(f"No PDFs found in {PDF_DIR}")
         return
 
+    # Load filenames already in parsed.jsonl so we skip them
+    already_parsed: set[str] = set()
+    if OUTPUT_PATH.exists():
+        for line in OUTPUT_PATH.read_text(encoding="utf-8").splitlines():
+            try:
+                already_parsed.add(json.loads(line)["document"])
+            except Exception:
+                pass
+        if already_parsed:
+            print(f"Skipping {len(already_parsed)} already-parsed file(s): {already_parsed}")
+
+    new_files = [p for p in pdf_files if p.name not in already_parsed]
+    if not new_files:
+        print("All PDFs already parsed. Nothing to do.")
+        return
+
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     total = 0
-    with OUTPUT_PATH.open("w", encoding="utf-8") as out:
-        for pdf_path in pdf_files:
+    # Append to existing file so old sections are preserved
+    with OUTPUT_PATH.open("a", encoding="utf-8") as out:
+        for pdf_path in new_files:
             print(f"Parsing {pdf_path.name} ...")
             sections = parse_pdf(pdf_path)
             for sec in sections:
@@ -172,7 +189,7 @@ def main():
             print(f"  → {len(sections)} sections extracted")
             total += len(sections)
 
-    print(f"\nTotal sections: {total}")
+    print(f"\nNew sections added: {total}")
     print(f"Output: {OUTPUT_PATH}")
 
 
