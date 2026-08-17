@@ -76,13 +76,20 @@ class UploadHandler:
 
     def check_duplicate(self, filename: str) -> tuple[bool, str | None]:
         """
-        Check if a file with the same name and hash has already been processed.
-
+        Check if a file with the same name has already been successfully processed.
+        
         Returns:
             (is_duplicate, previous_status)
+        
+        Note: Returns False for "ingestion_failed" so we can retry.
         """
         if filename in self.registry:
-            return True, self.registry[filename].status
+            record = self.registry[filename]
+            # Only block if it was successfully completed
+            if record.status == "ingestion_completed":
+                return True, record.status
+            # Allow retry for failed or in-progress uploads
+            return False, record.status
         return False, None
 
     def mark_uploaded(self, filename: str, file_hash: str):

@@ -12,5 +12,12 @@
     "status": "ingestion_completed",
     "timestamp": "2026-08-17T15:26:16.586515",
     "error_message": null
+  },
+  "TS_33.501_R17_v17.14.0.pdf.pdf": {
+    "filename": "TS_33.501_R17_v17.14.0.pdf.pdf",
+    "file_hash": "c76bfbee0858692133c673ab80fe4043288ee9eba259cc7bc58e6aa1f4952635",
+    "status": "uploaded",
+    "timestamp": "2026-08-17T21:04:09.602666",
+    "error_message": null
   }
 }
