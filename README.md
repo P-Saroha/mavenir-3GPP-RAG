@@ -7,136 +7,116 @@ minimise hallucination risk.
 
 ---
 
-## System Architecture (High-Level)
+## System Architecture (Complete Workflow)
 
 ```mermaid
-graph LR
-    A["📄 PDFs<br/>TS 23.501<br/>TS 23.502<br/>TS 23.503"] -->|Parse| B["Sections<br/>10,567"]
-    B -->|Chunk| C["Chunks<br/>1,972"]
-    C -->|Embed| D["Vectors<br/>768-dim"]
-    D -->|Index| E["Qdrant<br/>Vector Store"]
+flowchart TD
+    Start["🚀 Start"] --> UI["Streamlit UI<br/>Web Interface"]
     
-    E -->|Dense Search| F["Hybrid<br/>Retrieval"]
-    F1["BM25<br/>Sparse"] -->|Keyword Search| F
+    UI --> UserAction{User Action}
     
-    F -->|RRF Fusion| G["Rerank<br/>30 candidates"]
-    G -->|Cross-Encoder| H["Top-10<br/>Reranked"]
-    H -->|MMR Diversity| I["Top-6<br/>Final Evidence"]
+    %% INGESTION PATH
+    UserAction -->|Upload PDF| Upload["📤 File Upload<br/>Select from data/pdfs/"]
+    Upload --> IngestChoice{Ingest Mode}
+    IngestChoice -->|Full Pipeline| IngestFull["python -m src.ingestion.ingest"]
+    IngestChoice -->|Skip Embedding| IngestSkip["--skip-embed flag"]
     
-    I -->|Quality Gate| J{Sufficient<br/>Evidence?}
-    J -->|Yes| K["📝 LLM Generation<br/>Groq/Ollama"]
-    J -->|No| L["🚫 Abstain<br/>Cannot Answer"]
+    %% PARSING STAGE
+    IngestFull --> Parser["🔍 Parser Stage<br/>src/ingestion/parser.py"]
+    IngestSkip --> Parser
+    Parser --> CheckParsed["Check parsed.jsonl<br/>Skip already-parsed PDFs"]
+    CheckParsed --> Extract["Extract Sections<br/>Clause-aware splitting<br/>PyMuPDF"]
+    Extract --> Sections["10,567 Sections<br/>TS 23.501/502/503"]
     
-    K -->|Validate Citations| M["Answer + Sources<br/>with [S1]..[SN]"]
-    L --> M
+    %% CHUNKING STAGE
+    Sections --> Chunker["📚 Chunker Stage<br/>src/ingestion/chunker.py"]
+    Chunker --> ChunkLogic["Smart Chunking<br/>450-700 words target<br/>Merge small sections<br/>Split large sections"]
+    ChunkLogic --> AddHeaders["Add Section Headers<br/>[23.502 §4.3.2.1<br/>Call Control Procedures]"]
+    AddHeaders --> Chunks["1,972 Chunks<br/>Deterministic IDs<br/>SHA-256 hash"]
     
-    M -->|API| N["🌐 Streamlit UI"]
-    N -->|Upload PDF| O["Add to corpus"]
-    O -->|Run ingest| A
+    %% EMBEDDING STAGE
+    Chunks --> Embedder["🧠 Embedder Stage<br/>src/retrieval/embedder.py"]
+    Embedder --> CheckCache["Check embedding cache<br/>embedding_ids.json"]
+    CheckCache --> EmbedNew["Encode New Chunks<br/>nomic-embed-text-v1.5<br/>768-dim vectors<br/>GPU: 3min / CPU: 2hr"]
+    EmbedNew --> EmbedStore["Store Embeddings<br/>embeddings.npy<br/>embedding_ids.json"]
     
-    style A fill:#e1f5ff
-    style E fill:#fff3e0
-    style K fill:#f3e5f5
-    style N fill:#e8f5e9
-    style M fill:#fce4ec
-```
-
----
-
-## End-to-End Workflow
-
-### 1. Ingestion (Offline)
-```mermaid
-sequenceDiagram
-    participant User
-    participant Parser
-    participant Chunker
-    participant Embedder
-    participant Indexer
-    participant Qdrant
-
-    User ->> Parser: Drop PDF in data/pdfs/
-    Parser ->> Parser: Extract sections (clause-aware)
-    Parser ->> Chunker: Parsed sections
-    Chunker ->> Chunker: Merge/split to 450-700 words
-    Chunker ->> Embedder: Chunks with metadata
-    Embedder ->> Embedder: nomic-embed-text-v1.5 (768-dim)
-    Embedder ->> Indexer: Embeddings + chunk IDs
-    Indexer ->> Qdrant: Upsert vectors + BM25 index
-    Qdrant ->> User: ✓ Ready to query
-```
-
-### 2. Query & Retrieval (Online)
-```mermaid
-sequenceDiagram
-    participant User
-    participant UI
-    participant API
-    participant BM25
-    participant Qdrant
-    participant Reranker
-    participant MMR
-
-    User ->> UI: Ask question
-    UI ->> API: POST /ask {question}
-    API ->> BM25: Keyword search top-30
-    API ->> Qdrant: Vector search top-30
-    BM25 -->> API: 30 candidates
-    Qdrant -->> API: 30 candidates
-    API ->> API: RRF fusion (dedup, rank)
-    API ->> Reranker: 60 fused candidates
-    Reranker ->> Reranker: Cross-encoder score
-    Reranker -->> API: Top-10 reranked
-    API ->> MMR: Top-10 reranked
-    MMR ->> MMR: Diversity filter (λ=0.5)
-    MMR -->> API: Top-6 final
-    API -->> UI: 6 evidence chunks
-```
-
-### 3. Generation & Citation (Online)
-```mermaid
-sequenceDiagram
-    participant API
-    participant QualityGate
-    participant LLM
-    participant CitationValidator
-    participant UI
-
-    API ->> QualityGate: 6 evidence chunks
-    QualityGate ->> QualityGate: Check reranker score ≥ 1.0
-    QualityGate ->> QualityGate: Check count ≥ 2
-    alt Sufficient Evidence
-        QualityGate ->> LLM: Evidence + system prompt
-        LLM ->> LLM: Generate answer with [S1]..[S6]
-        LLM -->> CitationValidator: Raw answer + citations
-    else Insufficient
-        QualityGate -->> CitationValidator: "Cannot answer"
-    end
-    CitationValidator ->> CitationValidator: Validate each [Sx]
-    CitationValidator ->> CitationValidator: Map to (spec, section, page)
-    CitationValidator -->> UI: Answer + verified sources
-    UI ->> UI: Render with formatting
-```
-
-### 4. UI Interaction
-```mermaid
-stateDiagram-v2
-    [*] --> Input
-    Input --> Ask
-    Ask --> Loading
-    Loading --> Success
-    Loading --> NoEvidence
-    Success --> DisplayAnswer
-    Success --> DisplaySources
-    NoEvidence --> DisplayMessage
-    DisplayAnswer --> Input
-    DisplaySources --> Input
-    DisplayMessage --> Input
+    %% INDEXING STAGE
+    EmbedStore --> Indexer["⚡ Indexer Stage<br/>src/retrieval/index_dense.py"]
+    Indexer --> BuildBM25["Build BM25 Index<br/>Tokenize section text<br/>Keyword matching"]
+    BuildBM25 --> UpsertQdrant["Upsert to Qdrant<br/>Deterministic point IDs<br/>Safe idempotent operation"]
+    UpsertQdrant --> IndexDone["✓ Corpus Ready<br/>Vector + Sparse Index"]
     
-    Input --> Upload
-    Upload --> UploadDone
-    UploadDone --> Instructions
-    Instructions --> Input
+    %% QUERY PATH
+    UserAction -->|Ask Question| QuestionInput["❓ User Question<br/>textarea input"]
+    IndexDone --> QuestionInput
+    
+    %% RETRIEVAL STAGE
+    QuestionInput --> Retrieval["🔎 Retrieval Stage<br/>src/rag.py"]
+    Retrieval --> BM25Search["BM25 Search<br/>Keyword matching<br/>Top-30 candidates"]
+    Retrieval --> DenseSearch["Dense Search<br/>Qdrant vector search<br/>Top-30 candidates"]
+    
+    %% FUSION & RERANKING
+    BM25Search --> Fusion["🔀 RRF Fusion<br/>Reciprocal Rank<br/>Deduplication"]
+    DenseSearch --> Fusion
+    Fusion --> FusedCandidates["60 Fused Candidates<br/>Deduplicated & ranked"]
+    
+    FusedCandidates --> Reranker["🎯 Reranking Stage<br/>cross-encoder/ms-marco"]
+    Reranker --> RerankerScore["Cross-Encoder Scoring<br/>Semantic relevance"]
+    RerankerScore --> RerankedTop10["Top-10 Reranked<br/>Highest relevance first"]
+    
+    %% DIVERSITY & QUALITY GATE
+    RerankedTop10 --> MMR["🌈 MMR Filter<br/>Maximal Marginal Relevance<br/>λ=0.5"]
+    MMR --> FinalEvidence["Top-6 Final Evidence<br/>Diverse, relevant chunks"]
+    
+    FinalEvidence --> QualityGate{Quality Gate<br/>Check}
+    QualityGate -->|Reranker ≥ 1.0<br/>Count ≥ 2| HasEvidence["✓ Sufficient Evidence"]
+    QualityGate -->|Reranker < 1.0<br/>OR Count < 2| NoEvidence["✗ Insufficient Evidence"]
+    
+    %% GENERATION PATH - WITH EVIDENCE
+    HasEvidence --> LLMPrompt["📝 LLM Prompt<br/>Evidence + Context<br/>System prompt configured"]
+    LLMPrompt --> LLMGen["Generate Answer<br/>Groq (primary)<br/>Grok API (alt)<br/>Ollama (fallback)"]
+    
+    %% GENERATION PATH - NO EVIDENCE
+    NoEvidence --> Abstain["🚫 Abstain Response<br/>Cannot answer with<br/>sufficient evidence"]
+    
+    %% CITATION & VALIDATION
+    LLMGen --> CitationCheck["✓ Citation Validation<br/>Verify [S1]..[S6] tags<br/>Map to sections"]
+    Abstain --> CitationCheck
+    
+    CitationCheck --> FinalResponse["📋 Final Response<br/>Answer + Sources<br/>with verified citations"]
+    
+    %% API & UI RENDERING
+    FinalResponse --> API["🌐 FastAPI Response<br/>src/api:app"]
+    API --> Render["Render in Streamlit<br/>Markdown formatting<br/>Source links"]
+    Render --> UserDisplay["👤 User Display<br/>Question + Answer<br/>+ Sources"]
+    UserDisplay --> End["✅ Complete"]
+    
+    %% STYLING
+    style Start fill:#c8e6c9
+    style UI fill:#bbdefb
+    style Upload fill:#fff9c4
+    style Parser fill:#ffe0b2
+    style Chunker fill:#ffccbc
+    style Embedder fill:#f8bbd0
+    style Indexer fill:#e1bee7
+    style QuestionInput fill:#bbdefb
+    style Retrieval fill:#c5e1a5
+    style BM25Search fill:#c5e1a5
+    style DenseSearch fill:#c5e1a5
+    style Fusion fill:#fff9c4
+    style Reranker fill:#ffccbc
+    style MMR fill:#ffccbc
+    style QualityGate fill:#ffab91
+    style HasEvidence fill:#81c784
+    style NoEvidence fill:#e57373
+    style LLMGen fill:#ce93d8
+    style Abstain fill:#e57373
+    style CitationCheck fill:#ffeb3b
+    style FinalResponse fill:#81c784
+    style API fill:#64b5f6
+    style Render fill:#64b5f6
+    style UserDisplay fill:#c8e6c9
+    style End fill:#81c784
 ```
 
 ---
