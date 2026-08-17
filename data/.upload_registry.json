@@ -1,0 +1,16 @@
+{
+  "test_file.pdf": {
+    "filename": "test_file.pdf",
+    "file_hash": "c2dfeb9596b57755914341ba853f7ebba030d79ff5ee78ca22a3cee748f81237",
+    "status": "ingestion_completed",
+    "timestamp": "2026-08-17T15:10:40.236953",
+    "error_message": null
+  },
+  "test_file_e2e.pdf": {
+    "filename": "test_file_e2e.pdf",
+    "file_hash": "c2dfeb9596b57755914341ba853f7ebba030d79ff5ee78ca22a3cee748f81237",
+    "status": "ingestion_completed",
+    "timestamp": "2026-08-17T15:26:16.586515",
+    "error_message": null
+  }
+}

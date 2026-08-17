@@ -111,6 +111,8 @@ def search(
             "page":           p["page_start"],
             "page_end":       p["page_end"],
             "text":           p["text"],
+            "source_type":    p.get("source_type", "3gpp_official"),
+            "document":       p.get("document", ""),
         })
     return results
 

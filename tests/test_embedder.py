@@ -25,7 +25,8 @@ def test_embedding_shape():
     arr = np.load(EMBEDDINGS_PATH)
     ids = json.loads(IDS_PATH.read_text())
     assert arr.ndim == 2
-    assert arr.shape[1] == 768, f"Expected dim 768, got {arr.shape[1]}"
+    # all-MiniLM-L6-v2 produces 384-dimensional embeddings
+    assert arr.shape[1] == 384, f"Expected dim 384 (all-MiniLM-L6-v2), got {arr.shape[1]}"
     assert arr.shape[0] == len(ids), "Row count must match id list length"
 
 

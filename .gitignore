@@ -81,3 +81,6 @@ Thumbs.db
 *.pickle
 *.json.bak
 *.jsonl.bak
+
+
+AUDIT_REPORT.md

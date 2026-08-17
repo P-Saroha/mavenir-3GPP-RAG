@@ -27,6 +27,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from src.utils.config import EMBEDDING_MODEL
+from src.utils.model_cache import download_embedding_model
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 CHUNKS_PATH = Path("data/chunks.jsonl")
@@ -34,9 +35,10 @@ EMBEDDINGS_PATH = Path("data/embeddings.npy")
 IDS_PATH = Path("data/embedding_ids.json")
 CACHE_PATH = Path("data/embedding_cache.json")  # {chunk_id: text_sha1}
 
-# nomic-embed-text-v1.5 prefix for corpus documents
-DOCUMENT_PREFIX = "search_document: "
-BATCH_SIZE = 64
+# sentence-transformers/all-MiniLM-L6-v2 produces 384-dim vectors
+# nomic-embed-text-v1.5 produces 768-dim vectors
+DOCUMENT_PREFIX = ""  # all-MiniLM doesn't use document prefixes
+BATCH_SIZE = 128
 
 
 def _sha1(text: str) -> str:
@@ -44,8 +46,10 @@ def _sha1(text: str) -> str:
 
 
 def load_model() -> SentenceTransformer:
+    """Load embedding model from cache (downloads on first run only)."""
     print(f"Loading embedding model: {EMBEDDING_MODEL}")
-    return SentenceTransformer(EMBEDDING_MODEL, trust_remote_code=True)
+    model = download_embedding_model(verbose=False)
+    return model
 
 
 def load_chunks(path: Path) -> list[dict]:

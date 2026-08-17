@@ -3,6 +3,7 @@ tests/test_grok.py
 -------------------
 Tests for src/generation/grok.py.
 
+Grok is the ONLY LLM provider. No fallbacks to Groq or Ollama.
 API calls are mocked so tests pass without xAI credits.
 One integration test is marked with a skip flag — remove the skip
 when credits are available.
@@ -100,6 +101,26 @@ def test_generate_uses_configured_model():
         assert call_args.kwargs["model"] == ACTIVE_MODEL
 
 
+def test_generate_raises_on_missing_api_key():
+    from src.generation.grok import generate
+    
+    with patch("src.generation.grok.GROK_API_KEY", ""):
+        with pytest.raises(ValueError, match="GROK_API_KEY"):
+            generate("q", "evidence")
+
+
+def test_generate_raises_on_api_failure():
+    from src.generation.grok import generate
+    
+    with patch("src.generation.grok._get_client") as mock_client_fn:
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = Exception("API error")
+        mock_client_fn.return_value = mock_client
+        
+        with pytest.raises(Exception, match="API error"):
+            generate("q", "evidence")
+
+
 # ── unit: answer() ────────────────────────────────────────────────────────────
 
 def test_answer_returns_cannot_answer_when_gate_fails():
@@ -165,6 +186,7 @@ def test_answer_result_has_required_keys():
 
 # ── integration (requires xAI credits) ───────────────────────────────────────
 
+@pytest.mark.skip(reason="Requires xAI API credits")
 def test_live_amf_question():
     from src.generation.grok import answer
     result = answer("What is the role of the AMF in 5G core network?")

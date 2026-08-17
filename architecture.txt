@@ -1,5 +1,5 @@
-3GPP R17 (Optimized v2 Pipeline)
-================================
+3GPP R17 (Production Pipeline - Dense-Only)
+==========================================
 
 TS 23.501 (System Architecture)
 TS 23.502 (Procedures)
@@ -17,8 +17,8 @@ Chunk metadata: spec, section, page, title
 Qdrant Vector Store
  ┌──────────────────────────┐
  │ Dense Embeddings         │
- │ (nomic-embed-text v1.5)  │
- │ 768-dimensional vectors  │
+ │ (all-MiniLM-L6-v2)       │
+ │ 384-dimensional vectors  │
  │ 1,972 chunks indexed     │
  │ + metadata               │
  └────────┬─────────────────┘
@@ -26,13 +26,13 @@ Qdrant Vector Store
   User Query
           ↓
 ═════════════════════════════════════════════════
- OPTIMIZED RETRIEVAL (v2 - Simplified & Faster)
+ PRODUCTION RETRIEVAL PIPELINE (Dense-Only)
 ═════════════════════════════════════════════════
           ↓
   Dense Search Only
-  (Top-30 candidates)
-  ✓ Removed BM25 (was creating noise via RRF)
-  ✓ Removed RRF fusion overhead
+  (Top-30 candidates from Qdrant)
+  ✓ Removed BM25 (evaluated but not selected)
+  ✓ No RRF fusion overhead
           ↓
   Cross-Encoder Reranking
   (ms-marco-MiniLM-L6-v2)
@@ -40,8 +40,8 @@ Qdrant Vector Store
   Top-10 results
           ↓
   MMR Diversity Filter
-  λ = 0.55 (favor relevance)
-  Top-7 results (diverse)
+  λ = 0.55 (favor relevance slightly)
+  Top-7 results (balanced relevance/diversity)
           ↓
 ═════════════════════════════════════════════════
           ↓
@@ -67,9 +67,7 @@ Qdrant Vector Store
   Temperature = 0.0
       ↓
   LLM Generation
-  ├─ Groq llama-3.3-70b (primary)
-  ├─ xAI grok-3 (if XAI_API_KEY set)
-  └─ Ollama mistral (local fallback)
+  └─ xAI Grok (ONLY provider)
       ↓
   Parse [Sx] Citation Tags
       ↓
@@ -102,20 +100,21 @@ Qdrant Vector Store
   User sees answer + verified sources
 
 ═════════════════════════════════════════════════
-KEY METRICS (v2 Pipeline)
+KEY METRICS (Production Pipeline)
 ═════════════════════════════════════════════════
 
-Retrieval Quality:
+Retrieval Quality (28 questions):
   • Dense baseline: Hit@5 = 0.857, MRR = 0.623
   • Production (Dense+Rerank+MMR): Hit@5 = 0.714, MRR = 0.564
-  • Trade-off: −14.3% Hit@5 for evidence diversity
+  • Trade-off: −14.3% Hit@5 for evidence diversity & precision
 
-Answer Quality (28 answerable + 2 unanswerable):
-  • Correctness: 1.0000 (100%)
-  • Abstention Accuracy: 1.0000 (100%)
+Answer Quality (28 answerable + 2 unanswerable questions):
+  • Correctness: 1.0000 on 28 answerable questions
+  • Abstention Accuracy: 1.0000 on out-of-domain questions
   • Citation Accuracy: 0.6786 (67.9%)
-  • Unsupported Rate: 0.0000 (0%)
-  • [INVALID] Citations: 0
+  • Unsupported Rate: 0.0000 (0% wrong refusals)
+  • Evidence-Grounded Generation: 0 [INVALID] citations
+  • 0 unsupported answers on 30-question evaluation set
 
 Knowledge Base:
   • Total chunks: 1,972
@@ -126,15 +125,14 @@ Knowledge Base:
   • TS 23.503: 214 chunks
 
 ═════════════════════════════════════════════════
-IMPROVEMENTS (v2 vs v1)
+PRODUCTION OPTIMIZATIONS
 ═════════════════════════════════════════════════
 
-✓ Removed BM25+RRF: Eliminated −29% MRR degradation noise
-✓ Simplified retrieval: Single dense search (no dual pipeline)
-✓ Faster: 200ms latency reduction (no RRF fusion)
-✓ Cleaner: Fewer hyperparameters to tune
-✓ Better code: dense_only_search() vs hybrid_search()
-✓ Increased MMR_TOP_K: 6 → 7 (recovery potential)
-✓ Increased LAMBDA_PARAM: 0.5 → 0.55 (favor relevance)
+✓ Dense-only retrieval: Simpler, faster, higher precision than BM25+RRF
+✓ Cross-encoder reranking: Joint (query, passage) scoring after retrieval
+✓ MMR diversity: Ensures complementary evidence, not redundant chunks
+✓ Quality gate: Evidence-grounded abstention (fails closed, not optimistic)
+✓ Citation validation: Deterministic ID verification, no hallucinated sources
+✓ Single LLM provider: xAI Grok (clear error if unavailable, no silent fallback)
 
 ═════════════════════════════════════════════════

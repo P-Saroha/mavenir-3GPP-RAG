@@ -30,7 +30,7 @@ from src.utils.config import QDRANT_URL
 
 # ── constants ─────────────────────────────────────────────────────────────────
 COLLECTION_NAME = "3gpp_r17_5gcore"
-VECTOR_DIM = 768
+VECTOR_DIM = 384  # all-MiniLM-L6-v2 produces 384-dim vectors
 BATCH_SIZE = 128
 
 CHUNKS_PATH = Path("data/chunks.jsonl")
@@ -45,6 +45,10 @@ def _point_id(chunk_id: str) -> str:
     Deterministic: same chunk always maps to the same Qdrant point ID."""
     # chunk_id is a 32-char hex string — pad to 32 bytes for UUID
     return str(uuid.UUID(chunk_id.ljust(32, "0")[:32]))
+
+
+def get_client() -> QdrantClient:
+    """Get Qdrant client instance."""
     return QdrantClient(url=QDRANT_URL)
 
 
@@ -101,6 +105,8 @@ def index(client: QdrantClient, chunks_by_id: dict, embeddings: np.ndarray,
                 "page_start":    c["page_start"],
                 "page_end":      c["page_end"],
                 "text":          c["text"],
+                "source_type":   c.get("source_type", "3gpp_official"),
+                "document":      c.get("document", ""),
             },
         ))
 

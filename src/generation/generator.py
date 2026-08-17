@@ -1,17 +1,14 @@
 """
 src/generation/generator.py
 -----------------------------
-Unified LLM generation with automatic fallback.
+Unified LLM generation using xAI Grok API (ONLY provider).
 
-Priority order:
-  1. Groq API  (if GROQ_API_KEY is set)
-  2. xAI Grok  (if XAI_API_KEY is set)
-  3. Ollama    (if running locally)
-  4. Error     (if all three fail)
+No fallback providers. If Grok API is unavailable or quota exhausted,
+fails gracefully with clear error message.
 
 This module is the single import used by the API and UI layers.
-It re-exports the full `answer()` pipeline from grok.py and adds
-generate_answer() as a lower-level function that accepts pre-built evidence.
+It re-exports the full `answer()` pipeline from grok.py and provides
+generate_answer() for lower-level usage with pre-built evidence.
 
 Usage:
     from src.generation.generator import answer, generate_answer
@@ -19,12 +16,11 @@ Usage:
 
 from __future__ import annotations
 
-from src.utils.config import GROQ_API_KEY, XAI_API_KEY
 from src.generation.grok import (
     SYSTEM_PROMPT,
     CANNOT_ANSWER,
     answer,           # full pipeline (retrieve → gate → generate)
-    generate,         # low-level: query + evidence → LLM response
+    generate,         # low-level: query + evidence → Grok response
 )
 
 
@@ -32,33 +28,20 @@ def generate_answer(query: str, evidence: str) -> str:
     """
     Generate an answer given a pre-built evidence string.
 
-    Tries providers in priority order:
-      1. Groq  (if GROQ_API_KEY set)
-      2. xAI   (if XAI_API_KEY set)
-      3. Ollama (local fallback)
+    Uses xAI Grok API (ONLY provider).
+    
+    Raises:
+        ValueError: if GROK_API_KEY not set
+        Exception: if Grok API call fails (no fallback)
 
-    Returns the answer string, or CANNOT_ANSWER if all providers fail.
+    Args:
+        query: user question
+        evidence: pre-built evidence string
+
+    Returns:
+        answer string from Grok, or CANNOT_ANSWER if generation fails
     """
-    # ── Try cloud provider (Groq or xAI via grok.generate) ────────────────────
-    if GROQ_API_KEY or XAI_API_KEY:
-        try:
-            return generate(query, evidence)
-        except Exception as e:
-            print(f"[generator] Cloud provider failed: {e}")
-            print("[generator] Falling back to Ollama ...")
-
-    # ── Try local Ollama ───────────────────────────────────────────────────────
-    from src.generation.local import generate_with_local_llm, is_ollama_available
-
-    if is_ollama_available():
-        try:
-            prompt = f"Question: {query}\n\nEvidence:\n{evidence}"
-            return generate_with_local_llm(prompt, system=SYSTEM_PROMPT)
-        except Exception as e:
-            print(f"[generator] Ollama failed: {e}")
-
-    # ── All providers failed ───────────────────────────────────────────────────
-    return CANNOT_ANSWER
+    return generate(query, evidence)
 
 
 # Re-export for convenience

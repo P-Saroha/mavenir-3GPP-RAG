@@ -50,6 +50,8 @@ class Chunk:
     page_start: int
     page_end: int
     text: str
+    source_type: str = "3gpp_official"  # "3gpp_official" or "uploaded"
+    document: str = ""  # filename (for uploaded PDFs)
 
 
 def _chunk_id(spec: str, section: str, page_start: int, text: str, offset: int = 0) -> str:
@@ -69,6 +71,11 @@ def _split_large(section: dict, target: int, overlap: int) -> list[Chunk]:
     words = section["text"].split()
     chunks = []
     start = 0
+    
+    # Determine source_type
+    source_type = section.get("source_type", "3gpp_official")
+    document = section.get("document", "")
+    
     while start < len(words):
         end = min(start + target, len(words))
         chunk_text = " ".join(words[start:end])
@@ -86,6 +93,8 @@ def _split_large(section: dict, target: int, overlap: int) -> list[Chunk]:
             page_start=section["page_start"],
             page_end=section["page_end"],
             text=txt,
+            source_type=source_type,
+            document=document,
         ))
         if end == len(words):
             break
@@ -101,6 +110,11 @@ def _make_chunk(sections: list[dict]) -> Chunk:
     header = f"[{first['spec']} §{first['section']} — {first['section_title']}]"
     body = "\n\n".join(s["text"] for s in sections if s["text"].strip())
     combined_text = f"{header}\n{body}"
+    
+    # Determine source_type: preserve if in input, otherwise default to 3gpp_official
+    source_type = first.get("source_type", "3gpp_official")
+    document = first.get("document", "")
+    
     return Chunk(
         chunk_id=_chunk_id(first["spec"], first["section"], first["page_start"], combined_text, offset=0),
         spec=first["spec"],
@@ -112,6 +126,8 @@ def _make_chunk(sections: list[dict]) -> Chunk:
         page_start=first["page_start"],
         page_end=last["page_end"],
         text=combined_text,
+        source_type=source_type,
+        document=document,
     )
 
 
@@ -180,6 +196,8 @@ def chunk_sections(sections: list[dict]) -> list[Chunk]:
                 page_start=prev.page_start,
                 page_end=bucket[-1]["page_end"],
                 text=merged_text.strip(),
+                source_type=prev.source_type,
+                document=prev.document,
             )
         else:
             chunks.append(_make_chunk(bucket))

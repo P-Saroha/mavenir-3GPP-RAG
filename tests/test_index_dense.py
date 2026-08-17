@@ -38,7 +38,7 @@ def test_payload_fields_present():
     assert results, "No results returned"
     payload = results[0].payload
     for field in ("chunk_id", "spec", "release", "version", "section",
-                  "section_title", "parent_section", "page_start", "page_end", "text"):
+                  "section_title", "parent_section", "page_start", "page_end", "text", "source_type"):
         assert field in payload, f"Missing payload field: {field}"
 
 

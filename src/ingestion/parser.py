@@ -63,6 +63,7 @@ class Section:
     section_title: str
     parent_section: str
     text: str = field(default="", repr=False)
+    source_type: str = "3gpp_official"  # "3gpp_official" or "uploaded"
 
 
 def _parse_spec_meta(cover_text: str) -> tuple[str, str, str]:
@@ -90,7 +91,7 @@ def _parent(section: str) -> str:
     return parts[0] if len(parts) > 1 else ""
 
 
-def parse_pdf(pdf_path: Path) -> list[Section]:
+def parse_pdf(pdf_path: Path, source_type: str = "3gpp_official") -> list[Section]:
     doc = fitz.open(pdf_path)
     filename = pdf_path.name
 
@@ -136,6 +137,7 @@ def parse_pdf(pdf_path: Path) -> list[Section]:
                 section_title=section_title,
                 parent_section=_parent(section_num),
                 text="",
+                source_type=source_type,
             )
             pos = m.end()
 
@@ -186,7 +188,7 @@ def main():
             sections = parse_pdf(pdf_path)
             for sec in sections:
                 out.write(json.dumps(asdict(sec), ensure_ascii=False) + "\n")
-            print(f"  → {len(sections)} sections extracted")
+            print(f"  > {len(sections)} sections extracted")
             total += len(sections)
 
     print(f"\nNew sections added: {total}")

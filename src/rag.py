@@ -24,6 +24,7 @@ All internal details are hidden from the caller.
 
 from __future__ import annotations
 
+from src.utils.config import MMR_TOP_K
 from src.retrieval.hybrid   import dense_only_search, hybrid_search
 from src.retrieval.reranker import rerank
 from src.retrieval.mmr      import mmr
@@ -34,13 +35,13 @@ from src.generation.citations import (
     _system_prompt,
     validate_citations,
 )
-from src.generation.grok import _get_client, ACTIVE_MODEL, CANNOT_ANSWER
+from src.generation.grok import _get_client, GROK_MODEL, CANNOT_ANSWER
 
 # ── pipeline constants ────────────────────────────────────────────────────────
 # Using dense-only retrieval (simplified, faster, better quality than BM25+RRF)
 DENSE_TOP_K   = 30   # candidates from dense search (no RRF noise)
 RERANK_TOP_K  = 10   # after cross-encoder
-MMR_TOP_K     = 7    # after MMR diversity filter
+# MMR_TOP_K imported from config (default: 7)
 MAX_EVIDENCE_WORDS = 3500  # slightly increased to accommodate extra source
 
 
@@ -110,7 +111,7 @@ def answer_question(query: str) -> dict:
     # ── 6. LLM generation ─────────────────────────────────────────────────────
     client = _get_client()
     response = client.chat.completions.create(
-        model=ACTIVE_MODEL,
+        model=GROK_MODEL,
         messages=[
             {"role": "system", "content": _system_prompt(list(source_map.keys()))},
             {"role": "user",   "content": f"Question: {query}\n\nEvidence:\n{evidence_str}"},
@@ -159,8 +160,7 @@ TEST_QUERIES = [
 
 
 def main():
-    from src.generation.grok import ACTIVE_PROVIDER
-    print(f"Provider: {ACTIVE_PROVIDER}  |  Model: {ACTIVE_MODEL}\n")
+    print(f"LLM Provider: xAI Grok  |  Model: {GROK_MODEL}\n")
 
     labels = (
         ["answerable"] * 5 +

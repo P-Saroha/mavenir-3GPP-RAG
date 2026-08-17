@@ -167,7 +167,7 @@ def evaluate() -> dict:
         }
         per_question.append(row)
         _save_partial(per_question)
-        print(f"  {q['id']:12s}  {'REFUSED ✓' if refused else 'ANSWERED (wrong!)'}")
+        print(f"  {q['id']:12s}  {'REFUSED [OK]' if refused else 'ANSWERED (wrong!)'}")
 
     return _compute_output(per_question)
 

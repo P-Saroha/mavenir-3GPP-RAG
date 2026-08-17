@@ -1,127 +1,204 @@
 """
 src/ingestion/ingest.py
-------------------------
-Single entry point for the full ingestion pipeline.
+-----------------------
+Orchestrates the complete ingestion pipeline for uploaded PDFs.
 
-Steps:
-  1. Parse  — extract sections from any new PDFs in data/pdfs/
-  2. Chunk  — split/merge sections into retrieval-ready chunks
-  3. Embed  — encode chunks with nomic-embed-text-v1.5  (skips unchanged chunks)
-  4. Index  — upsert vectors + metadata into Qdrant
+Flow:
+  1. Validate PDF exists and is readable
+  2. Check for duplicates (by filename)
+  3. Mark status: ingestion_started
+  4. Parse PDF → parsed.jsonl
+  5. Chunk → chunks.jsonl
+  6. Embed (with cache) → embeddings.npy + embedding_ids.json
+  7. Index into Qdrant
+  8. Mark status: ingestion_completed
 
-Adding a new document:
-  1. Drop the PDF into data/pdfs/
-  2. Run:  python -m src.ingestion.ingest
-  Existing documents are NOT re-processed. Only the new PDF goes through
-  all four stages. The Qdrant upsert is idempotent — safe to re-run.
+Reuses all existing ingestion code (parser, chunker, embedder, indexer).
 
-Usage:
-    python -m src.ingestion.ingest           # full pipeline
-    python -m src.ingestion.ingest --check   # verify counts without ingesting
+Usage (from Streamlit or CLI):
+    python -m src.ingestion.ingest path/to/file.pdf
 """
 
-from __future__ import annotations
-
-import argparse
+import sys
 import json
 from pathlib import Path
 
-# ── paths ─────────────────────────────────────────────────────────────────────
-PDF_DIR        = Path("data/pdfs")
-PARSED_PATH    = Path("data/parsed.jsonl")
-CHUNKS_PATH    = Path("data/chunks.jsonl")
-EMBEDDINGS_PATH= Path("data/embeddings.npy")
-IDS_PATH       = Path("data/embedding_ids.json")
+from src.ingestion.parser import parse_pdf
+from src.ingestion.chunker import chunk_sections, build_stats
+from src.retrieval.embedder import embed, load_model, save, load_chunks
+from src.ingestion.upload_handler import UploadHandler
+from src.retrieval.index_dense import get_client, ensure_collection, load_data, index
+
+# ── paths ──────────────────────────────────────────────────────────────────────
+PARSED_PATH = Path("data/parsed.jsonl")
+CHUNKS_PATH = Path("data/chunks.jsonl")
+EMBEDDINGS_PATH = Path("data/embeddings.npy")
+IDS_PATH = Path("data/embedding_ids.json")
+CACHE_PATH = Path("data/embedding_cache.json")
 
 
-def _count(path: Path) -> int:
-    if not path.exists():
-        return 0
-    return sum(1 for _ in path.read_text(encoding="utf-8").splitlines() if _)
+def ingest_pdf(pdf_path: str) -> dict:
+    """
+    Full ingestion pipeline for a single PDF.
 
-
-def check_status():
-    """Print current pipeline state without running anything."""
-    pdfs    = sorted(PDF_DIR.glob("*.pdf"))
-    parsed  = _count(PARSED_PATH)
-    chunks  = _count(CHUNKS_PATH)
-    emb_ids = len(json.loads(IDS_PATH.read_text())) if IDS_PATH.exists() else 0
-
-    print("── Pipeline status ──────────────────────────────────────")
-    print(f"  PDFs in data/pdfs/     : {len(pdfs)}")
-    for p in pdfs:
-        print(f"    {p.name}")
-    print(f"  Parsed sections        : {parsed}")
-    print(f"  Chunks                 : {chunks}")
-    print(f"  Embeddings             : {emb_ids}")
+    Returns status dict:
+        {
+            "success": bool,
+            "message": str,
+            "filename": str,
+            "sections": int,
+            "chunks": int,
+            "error": str or None,
+        }
+    """
+    pdf_path = Path(pdf_path)
+    handler = UploadHandler()
+    filename = pdf_path.name
 
     try:
-        from src.retrieval.index_dense import get_client, COLLECTION_NAME
+        # ── 1. Validate file ───────────────────────────────────────────────────
+        if not pdf_path.exists():
+            return {
+                "success": False,
+                "message": f"File not found: {pdf_path}",
+                "filename": filename,
+                "error": "File not found",
+            }
+
+        if not pdf_path.suffix.lower() == ".pdf":
+            return {
+                "success": False,
+                "message": f"Not a PDF file: {filename}",
+                "filename": filename,
+                "error": "Invalid file type",
+            }
+
+        # ── 2. Check for duplicates ────────────────────────────────────────────
+        file_hash = handler.compute_hash(pdf_path)
+        is_duplicate, prev_status = handler.check_duplicate(filename)
+        
+        if is_duplicate:
+            return {
+                "success": False,
+                "message": f"Duplicate: {filename} was already processed (status: {prev_status})",
+                "filename": filename,
+                "error": "Already indexed",
+            }
+
+        # ── 3. Mark as started ─────────────────────────────────────────────────
+        handler.mark_uploaded(filename, file_hash)
+        handler.mark_ingestion_started(filename)
+
+        # ── 4. Parse PDF ───────────────────────────────────────────────────────
+        print(f"Parsing {filename} ...")
+        sections = parse_pdf(pdf_path, source_type="uploaded")
+        if not sections:
+            raise Exception("No sections extracted from PDF")
+        print(f"  > {len(sections)} sections")
+
+        # ── 5. Append to parsed.jsonl ──────────────────────────────────────────
+        PARSED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with PARSED_PATH.open("a", encoding="utf-8") as f:
+            for sec in sections:
+                f.write(json.dumps({
+                    "document": sec.document,
+                    "spec": sec.spec,
+                    "release": sec.release,
+                    "version": sec.version,
+                    "page_start": sec.page_start,
+                    "page_end": sec.page_end,
+                    "section": sec.section,
+                    "section_title": sec.section_title,
+                    "parent_section": sec.parent_section,
+                    "text": sec.text,
+                    "source_type": sec.source_type,
+                }, ensure_ascii=False) + "\n")
+
+        # ── 6. Chunk all sections (reload to include new ones) ────────────────
+        print("Chunking all sections ...")
+        all_sections = [
+            json.loads(l)
+            for l in PARSED_PATH.read_text(encoding="utf-8").splitlines()
+        ]
+        chunks = chunk_sections(all_sections)
+        print(f"  > {len(chunks)} total chunks")
+
+        CHUNKS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with CHUNKS_PATH.open("w", encoding="utf-8") as f:
+            for c in chunks:
+                f.write(json.dumps({
+                    "chunk_id": c.chunk_id,
+                    "spec": c.spec,
+                    "release": c.release,
+                    "version": c.version,
+                    "section": c.section,
+                    "section_title": c.section_title,
+                    "parent_section": c.parent_section,
+                    "page_start": c.page_start,
+                    "page_end": c.page_end,
+                    "text": c.text,
+                    "source_type": c.source_type,
+                    "document": c.document,
+                }, ensure_ascii=False) + "\n")
+
+        stats = build_stats(chunks)
+        print(f"  > Stats: {stats}")
+
+        # ── 7. Embed all chunks (with caching) ─────────────────────────────────
+        print("Embedding chunks (may take minutes on CPU)...")
+        chunks_list = load_chunks(CHUNKS_PATH)
+        model = load_model()
+        array, ids, cache = embed(chunks_list, model)
+        save(array, ids, cache)
+        print(f"  > {len(ids)} chunks embedded")
+
+        # ── 8. Index into Qdrant ───────────────────────────────────────────────
+        print("Indexing into Qdrant...")
         client = get_client()
-        count = client.count(collection_name=COLLECTION_NAME).count
-        print(f"  Qdrant points          : {count}")
-        print(f"  Qdrant collection      : {COLLECTION_NAME}")
+        ensure_collection(client)
+        chunks_by_id, embeddings, emb_ids = load_data()
+        total = index(client, chunks_by_id, embeddings, emb_ids)
+        print(f"  > {total} points indexed")
+
+        # ── 9. Mark as completed ───────────────────────────────────────────────
+        handler.mark_ingestion_completed(filename)
+
+        return {
+            "success": True,
+            "message": f"✓ Successfully ingested {filename}",
+            "filename": filename,
+            "sections": len(sections),
+            "chunks": len(chunks),
+            "error": None,
+        }
+
     except Exception as e:
-        print(f"  Qdrant                 : unreachable ({e})")
-    print("─────────────────────────────────────────────────────────")
+        error_msg = str(e)
+        handler.mark_ingestion_failed(filename, error_msg)
+        return {
+            "success": False,
+            "message": f"Ingestion failed: {error_msg}",
+            "filename": filename,
+            "error": error_msg,
+        }
 
-
-def step_parse():
-    print("\n[1/4] Parsing PDFs ...")
-    from src.ingestion.parser import main as parse_main
-    parse_main()
-
-
-def step_chunk():
-    print("\n[2/4] Chunking sections ...")
-    from src.ingestion.chunker import main as chunk_main
-    chunk_main()
-
-
-def step_embed():
-    print("\n[3/4] Embedding chunks ...")
-    print("      NOTE: embedding is slow on CPU (~2h for 2k chunks).")
-    print("      Use Google Colab with T4 GPU for the first run (~3 min).")
-    print("      The cache means only NEW/CHANGED chunks are re-encoded.")
-    from src.retrieval.embedder import main as embed_main
-    embed_main()
-
-
-def step_index():
-    print("\n[4/4] Indexing into Qdrant ...")
-    from src.retrieval.index_dense import main as index_main
-    index_main()
-
-
-def run_pipeline(skip_embed: bool = False):
-    step_parse()
-    step_chunk()
-    if skip_embed:
-        print("\n[3/4] Skipping embedding (--skip-embed flag set).")
-        print("      Copy embeddings.npy + embedding_ids.json to data/ then re-run.")
-    else:
-        step_embed()
-    step_index()
-    print("\n✓ Ingestion complete.")
-    check_status()
-
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Full ingestion pipeline: parse → chunk → embed → index"
-    )
-    parser.add_argument("--check", action="store_true",
-                        help="Print pipeline status without ingesting")
-    parser.add_argument("--skip-embed", action="store_true",
-                        help="Skip embedding step (use when embeddings already exist)")
-    args = parser.parse_args()
+    if len(sys.argv) < 2:
+        print("Usage: python -m src.ingestion.ingest <path/to/pdf>")
+        sys.exit(1)
 
-    if args.check:
-        check_status()
+    pdf_path = sys.argv[1]
+    result = ingest_pdf(pdf_path)
+
+    print(f"\n{'='*60}")
+    print(f"Result: {result['message']}")
+    if not result["success"] and result.get("error"):
+        print(f"Error: {result['error']}")
+        sys.exit(1)
     else:
-        run_pipeline(skip_embed=args.skip_embed)
+        print(f"Sections: {result.get('sections', 'N/A')}")
+        print(f"Chunks: {result.get('chunks', 'N/A')}")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,9 @@
 tests/test_citations.py
 ------------------------
 Tests for src/generation/citations.py
+
+Uses xAI Grok API (ONLY LLM provider). Tests are mocked for unit tests,
+integration test is skipped if GROK_API_KEY unavailable.
 """
 
 from unittest.mock import patch, MagicMock
@@ -15,7 +18,7 @@ from src.generation.citations import (
 )
 
 
-def _chunk(spec="23.501", section="4.2", page=36, title="General", text="The AMF handles mobility."):
+def _chunk(spec="23.501", section="4.2", page=36, title="General", text="The AMF handles mobility.", source_type="3gpp_official"):
     return {
         "chunk_id": f"{spec}-{section}",
         "spec": spec, "release": "17", "version": "17.13.0",
@@ -23,6 +26,7 @@ def _chunk(spec="23.501", section="4.2", page=36, title="General", text="The AMF
         "parent_section": "4",
         "page": page, "page_end": page,
         "rerank_score": 5.0, "text": text,
+        "source_type": source_type,
     }
 
 
@@ -54,11 +58,23 @@ def test_source_map_has_required_fields():
     chunks = [_chunk(spec="23.502", section="5.1", page=100, title="PDU Session")]
     _, source_map = build_sourced_evidence(chunks)
     s = source_map["S1"]
-    for field in ("spec", "release", "section", "page", "title"):
+    for field in ("spec", "release", "section", "page", "title", "source_type"):
         assert field in s
     assert s["spec"] == "23.502"
     assert s["section"] == "5.1"
     assert s["page"] == 100
+    assert s["source_type"] == "3gpp_official"
+
+
+def test_source_map_preserves_source_type():
+    """Verify source_type is preserved for uploaded vs official PDFs."""
+    official_chunk = _chunk(source_type="3gpp_official")
+    uploaded_chunk = _chunk(section="5.1", source_type="uploaded")
+    
+    _, source_map = build_sourced_evidence([official_chunk, uploaded_chunk])
+    
+    assert source_map["S1"]["source_type"] == "3gpp_official"
+    assert source_map["S2"]["source_type"] == "uploaded"
 
 
 def test_empty_chunks_returns_empty():
@@ -95,8 +111,8 @@ def test_parse_preserves_order():
 
 def test_validate_all_valid():
     source_map = {
-        "S1": {"spec": "23.501", "release": "17", "section": "4.2", "page": 36, "title": "General"},
-        "S2": {"spec": "23.502", "release": "17", "section": "5.1", "page": 100, "title": "PDU"},
+        "S1": {"id": "[S1]", "spec": "23.501", "release": "17", "section": "4.2", "page": 36, "title": "General", "source_type": "3gpp_official"},
+        "S2": {"id": "[S2]", "spec": "23.502", "release": "17", "section": "5.1", "page": 100, "title": "PDU", "source_type": "3gpp_official"},
     }
     answer = "AMF role [S1]. PDU sessions [S2]."
     clean, valid, invalid = validate_citations(answer, source_map)
@@ -106,7 +122,7 @@ def test_validate_all_valid():
 
 
 def test_validate_removes_invalid():
-    source_map = {"S1": {"spec": "23.501", "release": "17", "section": "4.2", "page": 36, "title": ""}}
+    source_map = {"S1": {"id": "[S1]", "spec": "23.501", "release": "17", "section": "4.2", "page": 36, "title": "", "source_type": "3gpp_official"}}
     answer = "AMF role [S1]. Invented fact [S9]."
     clean, valid, invalid = validate_citations(answer, source_map)
     assert "S9" in invalid
@@ -116,11 +132,12 @@ def test_validate_removes_invalid():
 
 
 def test_validate_citation_has_metadata():
-    source_map = {"S1": {"spec": "23.501", "release": "17", "section": "4.2", "page": 36, "title": "General"}}
+    source_map = {"S1": {"id": "[S1]", "spec": "23.501", "release": "17", "section": "4.2", "page": 36, "title": "General", "source_type": "3gpp_official"}}
     clean, valid, _ = validate_citations("fact [S1].", source_map)
     assert valid[0]["id"] == "[S1]"
     assert valid[0]["spec"] == "23.501"
     assert valid[0]["section"] == "4.2"
+    assert valid[0]["source_type"] == "3gpp_official"
 
 
 # ── answer_with_citations (mocked) ───────────────────────────────────────────
@@ -161,7 +178,9 @@ def test_answer_with_citations_gate_fail():
 
 # ── integration ───────────────────────────────────────────────────────────────
 
+@pytest.mark.skip(reason="Requires xAI API credits")
 def test_live_no_invalid_citations():
+    """Integration test: verify Grok doesn't hallucinate citations."""
     result = answer_with_citations("What is the role of the AMF in 5G core network?")
     assert result["supported"] is True
     assert result["invalid_ids"] == [], f"LLM hallucinated: {result['invalid_ids']}"

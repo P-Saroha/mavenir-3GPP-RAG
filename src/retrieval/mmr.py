@@ -23,11 +23,12 @@ from pathlib import Path
 
 import numpy as np
 
+from src.utils.config import MMR_TOP_K
 from src.retrieval.reranker import retrieve_and_rerank
 
 # ── config ────────────────────────────────────────────────────────────────────
 LAMBDA_PARAM = 0.55     # balance between relevance (higher) and diversity (lower)
-MMR_TOP_K = 6           # final chunks returned
+# MMR_TOP_K imported from config (default: 7)
 
 EMBEDDINGS_PATH = Path("data/embeddings.npy")
 IDS_PATH        = Path("data/embedding_ids.json")

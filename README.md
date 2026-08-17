@@ -14,9 +14,9 @@ minimise hallucination risk.
 3. [Requirements from Mavenir](#3-requirements-from-mavenir)
 4. [Knowledge Corpus](#4-knowledge-corpus)
 5. [Technology Stack](#5-technology-stack)
-6. [Why Hybrid Retrieval](#6-why-hybrid-retrieval)
-7. [Why BM25 + Dense Retrieval](#7-why-bm25--dense-retrieval)
-8. [Why Reranking](#8-why-reranking)
+6. [Why Dense-Only Retrieval](#6-why-dense-only-retrieval-production-choice)
+7. [Why Cross-Encoder Reranking](#7-why-cross-encoder-reranking)
+8. [Why MMR Diversity Filtering](#8-why-mmr-diversity-filtering)
 9. [Why Clause-Aware Chunking](#9-why-clause-aware-chunking)
 10. [Hallucination Mitigation](#10-hallucination-mitigation)
 11. [Citation Mechanism](#11-citation-mechanism)
@@ -145,39 +145,38 @@ Ingestion
   │
   ├─ PyMuPDF extraction (structure-aware, clause-boundary detection)
   ├─ 3GPP clause-aware chunking (450–700 words, section hierarchy preserved)
-  ├─ nomic-embed-text-v1.5 embeddings (768-dim, normalised, CPU/GPU)
+  ├─ sentence-transformers/all-MiniLM-L6-v2 embeddings (384-dim, normalised, CPU/GPU)
   │
   └─ Qdrant (dense vector store, local Docker)
 
-Query (Optimized Pipeline v2)
+Query (Production Pipeline)
   │
-  ├─ Dense-only retrieval (top-30 candidates, no RRF noise)
+  ├─ Dense-only retrieval (top-30 candidates from Qdrant)
   ├─ Cross-encoder reranking (ms-marco-MiniLM-L6-v2, top-10)
-  ├─ MMR diversity filter (λ=0.55, top-7 for better diversity)
+  ├─ MMR diversity filter (λ=0.55, top-7 for balanced relevance/diversity)
   ├─ Evidence quality gate (reranker score threshold ≥ 1.0 + count ≥ 2)
   ├─ Parent-context expansion (±1 adjacent same-section chunk)
   ├─ Citation ID assignment ([S1]..[SN] mapped to real metadata)
-  ├─ LLM generation (Groq llama-3.3-70b / xAI grok-3 / Ollama mistral)
+  ├─ LLM generation (xAI Grok)
   ├─ Citation validation (unknown IDs → [INVALID], never reach user)
   └─ Final response: {answer, sources, supported}
 ```
 
 ---
 
-## 6. Why Dense-Only Retrieval
+## 6. Why Dense-Only Retrieval (Production Choice)
 
-Prior to optimization, the pipeline used hybrid BM25 + dense retrieval fused with RRF (Reciprocal Rank Fusion).
-However, analysis showed this introduced noise: BM25 keyword matching on acronym-dense 3GPP text
-(AMF, UPF, NSSAI, etc. appear in 100+ chunks) created false positives that degraded the RRF ranking.
+The production pipeline uses **dense-only retrieval** because:
 
-The optimized v2 pipeline uses **dense-only retrieval** because:
-
-- **Semantic understanding:** nomic-embed-text-v1.5 embeddings handle paraphrased questions better than keyword matching
-- **No RRF degradation:** Dense retrieval alone achieved Hit@5 = 0.857 vs 0.714 for BM25+Dense+RRF
+- **Semantic understanding:** sentence-transformers/all-MiniLM-L6-v2 embeddings handle paraphrased questions better than keyword matching
+- **No keyword noise:** Acronym-dense 3GPP text (AMF, UPF, NSSAI, etc.) creates false positives in BM25
 - **Simpler architecture:** Single retriever (Qdrant) instead of dual BM25+Dense pipelines
-- **Faster:** Dense search (~50ms) is comparable to BM25; removes RRF fusion overhead
+- **Faster:** Dense search (~50ms) with no RRF fusion overhead
+- **Higher precision:** Dense retrieval alone achieved Hit@5 = 0.857 vs 0.714 for BM25+Dense+RRF
 
-The reranker (cross-encoder) ensures precision after retrieval, compensating for any edge cases.
+The reranker (cross-encoder) ensures precision after retrieval by scoring (query, passage) pairs jointly.
+
+**Note:** BM25 was evaluated as a fallback but did not improve production results, so it was not selected for the active pipeline.
 
 ---
 
@@ -243,7 +242,7 @@ Four independent layers operate in sequence:
 | 4. Citation validation | Every `[Sx]` tag in the LLM output is verified against the source map. Unknown IDs are replaced with `[INVALID]`. |
 
 Measured on 28 answerable + 2 unanswerable questions:
-- **Correctness: 1.0000** — every answer contained the expected knowledge.
+- **Correctness: 1.0000** — every answer on the 28 answerable questions contained the expected knowledge.
 - **Unsupported rate: 0.0000** — no answerable question was wrongly refused.
 - **Abstention accuracy: 1.0000** — both out-of-domain questions correctly refused.
 - **Observed [INVALID] citations: 0** across all test runs.
@@ -370,7 +369,7 @@ pip install -r requirements.txt
 
 # 5. Copy and configure environment
 Copy-Item .env.example .env
-# Edit .env — add your GROQ_API_KEY (free at https://console.groq.com)
+# Edit .env — add your GROK_API_KEY (free at https://console.x.ai)
 
 # 6. Start Qdrant
 docker compose up -d
@@ -412,12 +411,17 @@ Open `http://localhost:8501` in your browser.
 
 ### Upload New PDF to Corpus
 
+**Automatic Ingestion (NEW!)**
 Using the Streamlit UI:
 1. Scroll to "📄 Add New PDF to Corpus" section
-2. Click to upload a 3GPP PDF
-3. Open terminal and run: `python -m src.ingestion.ingest`
-4. Wait for parsing → chunking → embedding → indexing
-5. Refresh the app (F5) to use updated corpus
+2. Upload a 3GPP PDF
+3. Ingestion runs **automatically** (~5 seconds):
+   - Parse → Chunk → Embed (cached) → Index → Ready
+4. Start asking questions immediately
+
+**No manual terminal commands needed!**
+
+See [INGESTION_OPTIMIZATION.md](INGESTION_OPTIMIZATION.md) for performance details.
 
 ### Direct pipeline test
 
@@ -476,13 +480,15 @@ $env:HF_HUB_OFFLINE="1"
    Hit@5 = 0.857 vs 0.714 for the full pipeline. The pipeline trades some raw
    retrieval precision for evidence diversity (MMR) and exact-clause recall (BM25).
 
-3. **Embeddings require GPU for fast generation** — nomic-embed-text-v1.5 on CPU
-   takes ~2 hours for 1,972 chunks. A one-time Colab T4 run takes ~3 minutes.
-   After initial generation, the `.npy` file is reused and no re-encoding is needed.
+3. **Embeddings are cached and fast** — ✅ SOLVED (Aug 2024)
+   - Using lightweight `sentence-transformers/all-MiniLM-L6-v2` (384-dim)
+   - Models cached locally after first download
+   - New PDFs embed in < 1 second (from cache)
+   - See [INGESTION_OPTIMIZATION.md](INGESTION_OPTIMIZATION.md) for details
 
-4. **Groq free-tier rate limits** — The free Groq tier allows 100k tokens/day.
-   Running the full answer evaluation (28 questions) requires ~112k tokens.
-   Run it across two days or upgrade to the Dev tier.
+4. **Grok free-tier rate limits** — The free xAI Grok tier allows limited tokens per period.
+   Running the full answer evaluation (28 questions) may consume quota.
+   Monitor your usage at https://console.x.ai
 
 5. **No multi-turn conversation** — The API and UI handle single-turn Q&A only.
    Context from previous questions is not retained.

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-from src.generation.grok import _get_client, ACTIVE_MODEL, CANNOT_ANSWER
+from src.generation.grok import _get_client, GROK_MODEL, CANNOT_ANSWER
 from src.retrieval.reranker import retrieve_and_rerank
 from src.retrieval.quality_gate import check
 
@@ -32,7 +32,7 @@ def build_sourced_evidence(chunks: list[dict]) -> tuple[str, dict[str, dict]]:
     """
     Assign [S1]..[SN] IDs to chunks and return:
       - formatted evidence string with IDs
-      - source_map: {"S1": {spec, release, section, page, text}, ...}
+      - source_map: {"S1": {spec, release, section, page, text, source_type, document}, ...}
     """
     source_map: dict[str, dict] = {}
     parts: list[str] = []
@@ -40,11 +40,14 @@ def build_sourced_evidence(chunks: list[dict]) -> tuple[str, dict[str, dict]]:
     for i, c in enumerate(chunks, start=1):
         sid = f"S{i}"
         source_map[sid] = {
-            "spec":    c.get("spec", ""),
-            "release": c.get("release", "17"),
-            "section": c.get("section", ""),
-            "page":    c.get("page",  c.get("page_start", "")),
-            "title":   c.get("section_title", ""),
+            "id":       f"[{sid}]",
+            "spec":     c.get("spec", ""),
+            "release":  c.get("release", "17"),
+            "section":  c.get("section", ""),
+            "page":     c.get("page", c.get("page_start", "")),
+            "title":    c.get("section_title", ""),
+            "source_type": c.get("source_type", "3gpp_official"),
+            "document": c.get("document", ""),
         }
         header = (f"[{sid}] {c.get('spec','')} "
                   f"§{c.get('section','')} p.{c.get('page', c.get('page_start',''))}"
@@ -150,7 +153,7 @@ def answer_with_citations(query: str, top_k: int = 5) -> dict:
 
     client = _get_client()
     response = client.chat.completions.create(
-        model=ACTIVE_MODEL,
+        model=GROK_MODEL,
         messages=[
             {"role": "system", "content": _system_prompt(source_ids)},
             {"role": "user",   "content": f"Question: {query}\n\nEvidence:\n{evidence_str}"},

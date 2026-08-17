@@ -109,5 +109,11 @@ def test_stats_json_valid():
     assert STATS_PATH.exists()
     stats = json.loads(STATS_PATH.read_text())
     assert stats["total_chunks"] > 500
-    assert set(stats["chunks_per_spec"].keys()) == {"23.501", "23.502", "23.503"}
+    # Official 3GPP specs + 'unknown' for uploaded PDFs
+    specs = set(stats["chunks_per_spec"].keys())
+    assert "23.501" in specs
+    assert "23.502" in specs
+    assert "23.503" in specs
+    # 'unknown' is allowed for uploaded PDFs without official spec metadata
+    assert specs.issubset({"23.501", "23.502", "23.503", "unknown"})
     assert 200 <= stats["avg_words"] <= 700
