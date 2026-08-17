@@ -10,10 +10,10 @@ Flow:
   4. Parse PDF → parsed.jsonl
   5. Chunk → chunks.jsonl
   6. Embed (with cache) → embeddings.npy + embedding_ids.json
-  7. Index into Qdrant
+  7. Index into Chroma
   8. Mark status: ingestion_completed
 
-Reuses all existing ingestion code (parser, chunker, embedder, indexer).
+Reuses all existing ingestion code (parser, chunker, embedder).
 
 Usage (from Streamlit or CLI):
     python -m src.ingestion.ingest path/to/file.pdf
@@ -21,13 +21,14 @@ Usage (from Streamlit or CLI):
 
 import sys
 import json
+import numpy as np
 from pathlib import Path
 
 from src.ingestion.parser import parse_pdf
 from src.ingestion.chunker import chunk_sections, build_stats
 from src.retrieval.embedder import embed, load_model, save, load_chunks
 from src.ingestion.upload_handler import UploadHandler
-from src.retrieval.index_dense import get_client, ensure_collection, load_data, index
+from src.retrieval.chroma_db import get_collection, COLLECTION_NAME
 
 # ── paths ──────────────────────────────────────────────────────────────────────
 PARSED_PATH = Path("data/parsed.jsonl")
@@ -152,13 +153,49 @@ def ingest_pdf(pdf_path: str) -> dict:
         save(array, ids, cache)
         print(f"  > {len(ids)} chunks embedded")
 
-        # ── 8. Index into Qdrant ───────────────────────────────────────────────
-        print("Indexing into Qdrant...")
-        client = get_client()
-        ensure_collection(client)
-        chunks_by_id, embeddings, emb_ids = load_data()
-        total = index(client, chunks_by_id, embeddings, emb_ids)
-        print(f"  > {total} points indexed")
+        # ── 8. Index into Chroma ──────────────────────────────────────────────
+        print("Indexing into Chroma...")
+        collection = get_collection()
+        
+        # Load all chunks and embeddings
+        chunks_list = load_chunks(CHUNKS_PATH)
+        embeddings = np.load(EMBEDDINGS_PATH)
+        embedding_ids = json.loads(IDS_PATH.read_text())
+        
+        # Prepare data for Chroma
+        ids = []
+        documents = []
+        metadatas = []
+        embeddings_list = []
+        
+        for chunk in chunks_list:
+            ids.append(chunk.chunk_id)
+            documents.append(chunk.text)
+            metadatas.append({
+                "spec": chunk.spec,
+                "section": chunk.section,
+                "page": str(chunk.page_start),
+                "page_start": str(chunk.page_start),
+                "page_end": str(chunk.page_end),
+                "section_title": chunk.section_title,
+                "release": str(chunk.release),
+                "source_type": chunk.source_type,
+                "document": chunk.document,
+            })
+        
+        # Find indices for new embeddings
+        for chunk_id in ids:
+            idx = embedding_ids.index(chunk_id)
+            embeddings_list.append(embeddings[idx].tolist())
+        
+        # Add to Chroma
+        collection.add(
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+            embeddings=embeddings_list
+        )
+        print(f"  > {len(ids)} documents indexed into Chroma")
 
         # ── 9. Mark as completed ───────────────────────────────────────────────
         handler.mark_ingestion_completed(filename)
