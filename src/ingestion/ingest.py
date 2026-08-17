@@ -157,22 +157,32 @@ def ingest_pdf(pdf_path: str) -> dict:
         print("Indexing into Chroma...")
         collection = get_collection()
         
-        # Load all chunks and embeddings (load_chunks returns dicts, not objects)
+        # Load all chunks and embeddings
         chunks_list = load_chunks(CHUNKS_PATH)
         embeddings = np.load(EMBEDDINGS_PATH)
         embedding_ids = json.loads(IDS_PATH.read_text())
         
-        # Prepare data for Chroma
-        ids = []
-        documents = []
-        metadatas = []
-        embeddings_list = []
+        # Get existing IDs from Chroma to avoid duplicates
+        existing_ids_result = collection.get(include=[])
+        existing_ids = set(existing_ids_result["ids"]) if existing_ids_result["ids"] else set()
+        print(f"  > Chroma has {len(existing_ids)} existing chunks")
+        
+        # Only add NEW chunks (not already in Chroma)
+        ids_to_add = []
+        documents_to_add = []
+        metadatas_to_add = []
+        embeddings_to_add = []
         
         for chunk in chunks_list:
             chunk_id = chunk["chunk_id"]
-            ids.append(chunk_id)
-            documents.append(chunk["text"])
-            metadatas.append({
+            
+            # Skip if already in Chroma
+            if chunk_id in existing_ids:
+                continue
+            
+            ids_to_add.append(chunk_id)
+            documents_to_add.append(chunk["text"])
+            metadatas_to_add.append({
                 "spec": chunk.get("spec", ""),
                 "section": chunk.get("section", ""),
                 "page": str(chunk.get("page_start", "")),
@@ -183,20 +193,22 @@ def ingest_pdf(pdf_path: str) -> dict:
                 "source_type": chunk.get("source_type", "3gpp_official"),
                 "document": chunk.get("document", ""),
             })
-        
-        # Find indices for all chunks in embeddings array
-        for chunk_id in ids:
+            
+            # Find embedding for this chunk
             idx = embedding_ids.index(chunk_id)
-            embeddings_list.append(embeddings[idx].tolist())
+            embeddings_to_add.append(embeddings[idx].tolist())
         
-        # Add to Chroma
-        collection.add(
-            ids=ids,
-            documents=documents,
-            metadatas=metadatas,
-            embeddings=embeddings_list
-        )
-        print(f"  > {len(ids)} documents indexed into Chroma")
+        # Add only new chunks to Chroma
+        if ids_to_add:
+            collection.add(
+                ids=ids_to_add,
+                documents=documents_to_add,
+                metadatas=metadatas_to_add,
+                embeddings=embeddings_to_add
+            )
+            print(f"  > {len(ids_to_add)} NEW documents added to Chroma")
+        else:
+            print(f"  > All {len(chunks_list)} chunks already in Chroma (no duplicates)")
 
         # ── 9. Mark as completed ───────────────────────────────────────────────
         handler.mark_ingestion_completed(filename)
