@@ -34,38 +34,52 @@ minimise hallucination risk.
 
 ---
 
-## System Architecture (Complete Workflow)
+## System Architecture (Workflow)
 
 ```mermaid
 flowchart TD
-    U[User Query] --> M["Memory Node<br/>Cache context in embeddings"]
-    M --> R{Intent Router<br/>Classify Query Type}
-    R -->|Greeting/Smalltalk| G["Reply: Contextual Response"]
-    R -->|Out of Scope| OOS["Reply: Outside 3GPP scope"]
-    R -->|Corpus Query| QC{Query Analysis<br/>is_clear?}
-    QC -->|Ambiguous/Vague| RW["Query Rewriting<br/>LLM clarifies intent<br/>e.g: 'NF' → 'Network Function'"]
-    QC -->|Clear/Specific| RT["Retrieval Pipeline<br/>BM25 + Dense Search"]
-    RW --> RT
-    RT --> H["Hybrid Search<br/>Keyword top-30<br/>Vector top-30"]
-    H --> FU["RRF Fusion<br/>Reciprocal Rank<br/>Deduplication"]
-    FU --> RE["Reranking Stage<br/>Cross-Encoder Scoring"]
-    RE --> QG{Quality Gate<br/>Check Evidence}
-    QG -->|Score < 1.0<br/>Count < 2| HITL["HITL Review<br/>Ask user to verify"]
-    HITL -->|Approved| L["LLM Generation<br/>Groq/Grok/Ollama"]
-    HITL -->|Insufficient| NC["Reply: Insufficient context<br/>in specifications"]
-    QG -->|Score >= 1.0<br/>Count >= 2| L
-    L --> CV["Citation Validation<br/>Verify [S1]..[S6] tags<br/>Map to sections"]
-    CV --> DD["Source Deduplication<br/>Remove redundant citations<br/>Keep diverse evidence"]
-    G --> F["Format Response<br/>Answer + Sources<br/>Markdown rendering"]
-    OOS --> F
-    NC --> F
-    DD --> F
-    F --> API["FastAPI Response<br/>JSON with metadata"]
-    API --> DB[("Store State<br/>SQLite conversation log<br/>Embedding cache")]
-    DB --> UI["Streamlit Display<br/>Render answer + citations"]
-    UI --> E[User Sees Result]
-```
+    A1["PDFs<br/>data/pdfs/"] -->|PyMuPDF<br/>Strip headers| A2["Parsed Sections<br/>10,567"]
+    A2 -->|Regex detect<br/>4.2.1 pattern| A3["Extract Metadata<br/>spec, section, page"]
+    A3 -->|Write to| A4["parsed.jsonl"]
+    A4 -->|Skip already-parsed| A5["NEW sections"]
+    A5 -->|Group by spec| A6["Chunker"]
+    A6 -->|TARGET=450<br/>MAX=700 words| A7["Smart Split<br/>+Overlap 50w"]
+    A7 -->|SHA256 hash<br/>ID| A8["chunks.jsonl<br/>1,972 chunks"]
+    A8 -->|Add header<br/>spec §section| A9["Header Prefix<br/>[23.501 §4.2.1]"]
+    A9 -->|Load model<br/>nomic-embed-text| A10["Encode Chunks<br/>768-dim vectors"]
+    A10 -->|Cache check| A11["embeddings.npy"]
+    A11 -->|UUID from<br/>chunk_id| A12["Qdrant Points"]
+    A12 -->|+BM25| A13["Ready to Query"]
 
+    A13 -.->|Query| Q0["User Query"]
+    Q0 --> Q1["BM25 Search<br/>Top-30"]
+    Q0 --> Q2["Dense Search<br/>Top-30"]
+    Q1 --> Q3["RRF Fusion<br/>k=60"]
+    Q2 --> Q3
+    Q3 --> Q4["60 Fused<br/>Deduplicated"]
+    Q4 -->|rerank_score| Q5["Cross-Encoder<br/>Top-10"]
+    Q5 -->|mmr_score| Q6["MMR Filter<br/>Top-6"]
+
+    Q6 --> QG1{"Count >= 2?<br/>Score >= 1.0?<br/>Metadata OK?"}
+    QG1 -->|PASS| QG2["Evidence<br/>Supported"]
+    QG1 -->|FAIL| QG3["Cannot Answer"]
+
+    QG2 --> E1["Expand ±1<br/>chunks"]
+    E1 --> E2["Cap 3500<br/>words"]
+    E2 --> E3["Build<br/>S1..SN"]
+
+    E3 --> G1["System Prompt<br/>Use ONLY S1..SN"]
+    G1 --> G2["LLM Call<br/>Groq/Grok"]
+    G2 --> G3["Parse [Sx]<br/>tags"]
+    G3 --> G4["Validate IDs<br/>Replace Invalid"]
+    G4 --> G5["Deduplicate<br/>by spec,section"]
+
+    QG3 --> R1["{answer,<br/>sources,<br/>supported}"]
+    G5 --> R1
+    R1 -->|FastAPI| R2["Streamlit<br/>Display"]
+    R2 -->|Render| R3["User Result"]
+    R3 -.->|Upload| A1
+```
 ---
 
 ## 2. Problem Statement
@@ -119,11 +133,11 @@ Ingestion
 
 Query
   │
-  ├─ Hybrid retrieval: BM25 top-30 + dense top-30
+  ├─ Hybrid retrieval: BM25 top-20 + dense top-20
   ├─ RRF fusion (k=60, rank-only, no score weighting)
-  ├─ Cross-encoder reranking (ms-marco-MiniLM-L6-v2, top-10)
-  ├─ MMR diversity filter (λ=0.5, top-6)
-  ├─ Evidence quality gate (reranker score threshold + metadata check)
+  ├─ Cross-encoder reranking (ms-marco-MiniLM-L6-v2, top-8)
+  ├─ MMR diversity filter (λ=0.5, top-5)
+  ├─ Evidence quality gate (reranker score threshold ≥ 1.0 + count ≥ 2)
   ├─ Parent-context expansion (±1 adjacent same-section chunk)
   ├─ Citation ID assignment ([S1]..[SN] mapped to real metadata)
   ├─ LLM generation (Groq llama-3.3-70b / xAI grok-3 / Ollama mistral)
@@ -166,11 +180,11 @@ chunks that both retrievers agree on, which empirically improves precision.
 
 ## 8. Why Reranking
 
-The initial BM25 + dense retrieval returns 30 candidates per retriever (60 total
-after deduplication). Many are topically related but not the best answer.
+The initial BM25 + dense retrieval returns 20 candidates per retriever (40 total
+after RRF fusion). Many are topically related but not the best answer.
 The cross-encoder `ms-marco-MiniLM-L6-v2` scores each `(query, passage)` pair
 directly — this joint encoding captures query-passage interaction that bi-encoder
-models miss. It reduces 60 candidates to the 10 most relevant passages before
+models miss. It reduces 40 fused candidates to the 8 most relevant passages before
 MMR and context expansion.
 
 **Observed effect:** reranking improves Hit@1 from 0.286 (hybrid RRF) to
@@ -278,7 +292,7 @@ No LLM call is made. This prevents confident-sounding answers on out-of-scope qu
 
 ## 14. Retrieval Results
 
-Evaluated on 28 questions, top-5 retrieval window:
+Evaluated on 28 questions, top-5 retrieval window (note: top-K values are 20 hybrid candidates, 8 after reranking, 5 after MMR):
 
 | System | Hit@5 | MRR |
 |---|---|---|
