@@ -7,85 +7,66 @@ minimise hallucination risk.
 
 ---
 
+## Table of Contents
+
+1. [System Architecture](#system-architecture-complete-workflow)
+2. [Problem Statement](#2-problem-statement)
+3. [Requirements from Mavenir](#3-requirements-from-mavenir)
+4. [Knowledge Corpus](#4-knowledge-corpus)
+5. [Technology Stack](#5-technology-stack)
+6. [Why Hybrid Retrieval](#6-why-hybrid-retrieval)
+7. [Why BM25 + Dense Retrieval](#7-why-bm25--dense-retrieval)
+8. [Why Reranking](#8-why-reranking)
+9. [Why Clause-Aware Chunking](#9-why-clause-aware-chunking)
+10. [Hallucination Mitigation](#10-hallucination-mitigation)
+11. [Citation Mechanism](#11-citation-mechanism)
+12. [Abstention Mechanism](#12-abstention-mechanism)
+13. [Evaluation Methodology](#13-evaluation-methodology)
+14. [Retrieval Results](#14-retrieval-results)
+15. [Ablation Results](#15-ablation-results)
+16. [Setup Instructions](#16-setup-instructions)
+17. [How to Run](#17-how-to-run)
+18. [Example Questions](#18-example-questions)
+19. [Limitations](#19-limitations)
+20. [Future Improvements](#20-future-improvements)
+21. [Project Structure](#project-structure)
+22. [Answer Quality Results](#answer-quality-results-28-answerable--2-unanswerable-questions)
+
+---
+
 ## System Architecture (Complete Workflow)
 
 ```mermaid
 flowchart TD
-    Start[User Query] --> Memory["Memory Node<br/>Cache context in embeddings"]
-    
-    Memory --> Router{Intent Router<br/>Classify Query Type}
-    
-    Router -->|Greeting/Smalltalk| Greet["Reply: Contextual Response"]
-    
-    Router -->|Corpus Query| QueryCheck{Query Analysis<br/>is_clear?}
-    
-    Router -->|Out of Scope| OOS["Reply: Outside 3GPP scope"]
-    
-    QueryCheck -->|Ambiguous/Vague| Rewrite["Query Rewriting<br/>LLM clarifies intent<br/>e.g: 'NF' → 'Network Function'"]
-    
-    QueryCheck -->|Clear/Specific| Retrieve["Retrieval Pipeline<br/>BM25 + Dense Search"]
-    
-    Rewrite --> Retrieve
-    
-    Retrieve --> Hybrid["Hybrid Search<br/>Keyword top-30<br/>Vector top-30"]
-    
-    Hybrid --> Fusion["RRF Fusion<br/>Reciprocal Rank<br/>Deduplication"]
-    
-    Fusion --> Rerank["Reranking Stage<br/>Cross-Encoder Scoring"]
-    
-    Rerank --> QualityGate{Quality Gate<br/>Check Evidence}
-    
-    QualityGate -->|Score < 1.0<br/>Count < 2| ReviewContext["HITL Review<br/>Ask user to verify"]
-    
-    ReviewContext -->|Approved| Generate["LLM Generation<br/>Groq/Grok/Ollama"]
-    
-    ReviewContext -->|Insufficient| NoContext["Reply: Insufficient context<br/>in specifications"]
-    
-    QualityGate -->|Score >= 1.0<br/>Count >= 2| Generate
-    
-    Generate --> CitationVal["Citation Validation<br/>Verify [S1]..[S6] tags<br/>Map to sections"]
-    
-    CitationVal --> Dedup["Source Deduplication<br/>Remove redundant citations<br/>Keep diverse evidence"]
-    
-    Dedup --> FinalResp["Format Response<br/>Answer + Sources<br/>Markdown rendering"]
-    
-    Greet --> FinalResp
-    
-    OOS --> FinalResp
-    
-    NoContext --> FinalResp
-    
-    FinalResp --> API["FastAPI Response<br/>JSON with metadata"]
-    
-    API --> StateStore["Store State<br/>SQLite conversation log<br/>Embedding cache"]
-    
-    StateStore --> UI["Streamlit Display<br/>Render answer + citations"]
-    
-    UI --> End[User Sees Result]
-    
-    style Start fill:#e3f2fd
-    style Memory fill:#e3f2fd
-    style Router fill:#fff3e0
-    style QueryCheck fill:#fff3e0
-    style QualityGate fill:#fff3e0
-    style Retrieve fill:#e8f5e9
-    style Hybrid fill:#e8f5e9
-    style Fusion fill:#e8f5e9
-    style Rerank fill:#e8f5e9
-    style ReviewContext fill:#ffe0b2
-    style Generate fill:#f3e5f5
-    style CitationVal fill:#f3e5f5
-    style Dedup fill:#f3e5f5
-    style FinalResp fill:#fce4ec
-    style API fill:#c8e6c9
-    style StateStore fill:#b3e5fc
-    style UI fill:#b3e5fc
-    style End fill:#a5d6a7
+    U[User Query] --> M["Memory Node<br/>Cache context in embeddings"]
+    M --> R{Intent Router<br/>Classify Query Type}
+    R -->|Greeting/Smalltalk| G["Reply: Contextual Response"]
+    R -->|Out of Scope| OOS["Reply: Outside 3GPP scope"]
+    R -->|Corpus Query| QC{Query Analysis<br/>is_clear?}
+    QC -->|Ambiguous/Vague| RW["Query Rewriting<br/>LLM clarifies intent<br/>e.g: 'NF' → 'Network Function'"]
+    QC -->|Clear/Specific| RT["Retrieval Pipeline<br/>BM25 + Dense Search"]
+    RW --> RT
+    RT --> H["Hybrid Search<br/>Keyword top-30<br/>Vector top-30"]
+    H --> FU["RRF Fusion<br/>Reciprocal Rank<br/>Deduplication"]
+    FU --> RE["Reranking Stage<br/>Cross-Encoder Scoring"]
+    RE --> QG{Quality Gate<br/>Check Evidence}
+    QG -->|Score < 1.0<br/>Count < 2| HITL["HITL Review<br/>Ask user to verify"]
+    HITL -->|Approved| L["LLM Generation<br/>Groq/Grok/Ollama"]
+    HITL -->|Insufficient| NC["Reply: Insufficient context<br/>in specifications"]
+    QG -->|Score >= 1.0<br/>Count >= 2| L
+    L --> CV["Citation Validation<br/>Verify [S1]..[S6] tags<br/>Map to sections"]
+    CV --> DD["Source Deduplication<br/>Remove redundant citations<br/>Keep diverse evidence"]
+    G --> F["Format Response<br/>Answer + Sources<br/>Markdown rendering"]
+    OOS --> F
+    NC --> F
+    DD --> F
+    F --> API["FastAPI Response<br/>JSON with metadata"]
+    API --> DB[("Store State<br/>SQLite conversation log<br/>Embedding cache")]
+    DB --> UI["Streamlit Display<br/>Render answer + citations"]
+    UI --> E[User Sees Result]
 ```
 
 ---
-
-## 2. Problem Statement
 
 ## 2. Problem Statement
 
@@ -125,6 +106,9 @@ Extraction uses PyMuPDF with structure-aware parsing to preserve clause hierarch
 ---
 
 ## 5. Technology Stack
+
+```
+Ingestion
   │
   ├─ PyMuPDF extraction (structure-aware, clause-boundary detection)
   ├─ 3GPP clause-aware chunking (450–700 words, section hierarchy preserved)
