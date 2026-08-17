@@ -158,7 +158,7 @@ Query
   │
   ├─ Hybrid retrieval: BM25 top-20 + dense top-20
   ├─ RRF fusion (k=60, rank-only, no score weighting)
-  ├─ Cross-encoder reranking (ms-marco-MiniLM-L6-v2, top-8)
+  ├─ Cross-encoder reranking (ms-marco-MiniLM-L6-v2, top-10)
   ├─ MMR diversity filter (λ=0.5, top-5)
   ├─ Evidence quality gate (reranker score threshold ≥ 1.0 + count ≥ 2)
   ├─ Parent-context expansion (±1 adjacent same-section chunk)
@@ -207,7 +207,7 @@ The initial BM25 + dense retrieval returns 20 candidates per retriever (40 total
 after RRF fusion). Many are topically related but not the best answer.
 The cross-encoder `ms-marco-MiniLM-L6-v2` scores each `(query, passage)` pair
 directly — this joint encoding captures query-passage interaction that bi-encoder
-models miss. It reduces 40 fused candidates to the 8 most relevant passages before
+models miss. It reduces 40 fused candidates to the 10 most relevant passages before
 MMR and context expansion.
 
 **Observed effect:** reranking improves Hit@1 from 0.286 (hybrid RRF) to
@@ -228,8 +228,7 @@ as structural boundaries. Each chunk:
 - Preserves page start/end for source citation.
 - Can be linked back to its parent section for context expansion.
 
-Result: 1,972 chunks across 1,483 pages, average 386 words, zero chunks exceeding
-700 words.
+Result: 1,972 chunks across 1,483 pages, average 394 words, max observed: 715 words.
 
 ---
 
