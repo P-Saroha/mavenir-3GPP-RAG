@@ -73,17 +73,8 @@ def search(
 
     # Build where filter for Chroma
     where_filter = None
-    if spec or release:
-        conditions = []
-        if spec:
-            conditions.append({"spec": {"$eq": spec}})
-        if release:
-            conditions.append({"release": {"$eq": release}})
-        
-        if len(conditions) == 1:
-            where_filter = conditions[0]
-        elif len(conditions) > 1:
-            where_filter = {"$and": conditions}
+    if spec:
+        where_filter = {"spec": {"$eq": spec}}
 
     # Query Chroma
     try:
@@ -115,7 +106,6 @@ def search(
                 "chunk_id":       chunk_id,
                 "score":          round(score, 4),
                 "spec":           metadata.get("spec", ""),
-                "release":        metadata.get("release", "17"),
                 "section":        metadata.get("section", ""),
                 "section_title":  metadata.get("section_title", ""),
                 "parent_section": metadata.get("parent_section", ""),
