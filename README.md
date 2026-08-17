@@ -82,26 +82,68 @@ Opens: http://localhost:8501
 
 ## 🔄 System Architecture
 
+```mermaid
+graph LR
+    A["👤 User Query<br/>(Streamlit)"] --> B["🔍 Dense Retrieval<br/>(Chroma)<br/>top 30"]
+    B --> C["⚖️ Cross-Encoder<br/>Reranking<br/>top 10"]
+    C --> D["🎯 MMR Filter<br/>(Diversity)<br/>top 7"]
+    D --> E{"✅ Quality<br/>Gate<br/>score≥0.5?"}
+    E -->|PASS| F["📖 Context<br/>Expansion<br/>+Adjacent Sections"]
+    E -->|REJECT| Z["❌ Cannot Answer"]
+    F --> G["🏷️ Citation<br/>Tagging<br/>[S1][S2]..."]
+    G --> H["🤖 LLM Generation<br/>(Groq API)<br/>GPT-OSS-120b"]
+    H --> I["✓ Citation<br/>Validation<br/>&Parsing"]
+    I --> J["📊 Final Response<br/>Answer + Sources<br/>(Streamlit)"]
+    
+    style A fill:#e1f5ff
+    style B fill:#fff3e0
+    style C fill:#fff3e0
+    style D fill:#fff3e0
+    style E fill:#ffe0b2
+    style F fill:#f3e5f5
+    style G fill:#f3e5f5
+    style H fill:#c8e6c9
+    style I fill:#b3e5fc
+    style J fill:#c8e6c9
+    style Z fill:#ffcdd2
 ```
-User Query (Streamlit)
-    ↓
-[1. Dense Retrieval] - Chroma semantic search → top 30 candidates
-    ↓
-[2. Cross-Encoder Reranking] - MS-Marco scorer → top 10 candidates with scores
-    ↓
-[3. MMR Diversity Filter] - Balance relevance + diversity → top 7 candidates
-    ↓
-[4. Quality Gate] - Validate: score ≥ 0.5 AND count ≥ 2 → pass/reject
-    ↓
-[5. Context Expansion] - Pull adjacent sections from same spec
-    ↓
-[6. Evidence Building] - Format with [S1], [S2]... tags
-    ↓
-[7. LLM Generation] - Groq GPT-OSS-120B with system prompt
-    ↓
-[8. Citation Validation] - Parse [Sx] tags, match to sources
-    ↓
-Answer + Sources (Streamlit)
+
+### Pipeline Stages
+
+| Stage | Component | Time | Output |
+|-------|-----------|------|--------|
+| 1️⃣ **Dense Search** | Chroma (cosine similarity) | ~50ms | 30 candidates |
+| 2️⃣ **Reranking** | Cross-encoder (MS-Marco) | ~500ms | 10 scored candidates |
+| 3️⃣ **MMR Filter** | Diversity balance | ~20ms | 7 diverse candidates |
+| 4️⃣ **Quality Gate** | Evidence validation | ~5ms | Pass/Reject |
+| 5️⃣ **Context Expansion** | Adjacent section pull | ~100ms | Expanded chunks |
+| 6️⃣ **Citation Tagging** | [S1], [S2]... assignment | ~10ms | Tagged evidence |
+| 7️⃣ **LLM Generation** | Groq API call | ~2-3s | Answer with citations |
+| 8️⃣ **Citation Validation** | Regex parse & verify | ~50ms | Final response |
+| **TOTAL** | End-to-end | **~3-4s** | **Cited answer** |
+
+### Data Flow
+
+```
+Query
+  ↓
+[Dense Search] → Chroma DB (./chroma_data/)
+  ↓ (30 results)
+[Reranking] → Cross-encoder scores
+  ↓ (10 results)
+[MMR Filter] → Diversity selection
+  ↓ (7 results)
+[Quality Gate] → Threshold check (score ≥ 0.5, count ≥ 2)
+  ↓ (PASS)
+[Context Expansion] → Pull adjacent sections
+  ↓ (expanded chunks)
+[Citation Tagging] → [S1], [S2]... assignment
+  ↓ (tagged evidence)
+[LLM Generation] → Groq API (with system prompt)
+  ↓ (raw answer)
+[Citation Validation] → Parse [Sx] tags
+  ↓ (final answer)
+Response → User
 ```
 
 ---
