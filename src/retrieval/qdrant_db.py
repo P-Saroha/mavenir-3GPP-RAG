@@ -16,7 +16,7 @@ from src.utils.config import QDRANT_URL
 
 _log = logging.getLogger(__name__)
 
-COLLECTION_NAME = "3gpp_r17"
+COLLECTION_NAME = "3gpp_r17_5gcore"
 
 
 def get_client() -> QdrantClient:

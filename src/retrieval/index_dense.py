@@ -1,171 +1,143 @@
 """
 src/retrieval/index_dense.py
 -----------------------------
-Indexes all chunks + dense embeddings into Qdrant.
+Indexes all chunks + dense embeddings into Chroma (in-memory vector store).
 
 Collection : 3gpp_r17_5gcore
-Vector     : 768-dim cosine (nomic-embed-text-v1.5)
-Payload    : chunk_id, spec, release, version, section, section_title,
-             parent_section, page_start, page_end, text
+Vector dimension: 384 (all-MiniLM-L6-v2)
+Total indexed: ~1,980 chunks from official 3GPP specs
 
 Usage:
-    python -m src.retrieval.index_dense          # full corpus
-    python -m src.retrieval.index_dense --test   # first 100 chunks only
+    python -m src.retrieval.index_dense
 """
 
-import argparse
 import json
-import uuid
+import logging
 from pathlib import Path
 
 import numpy as np
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    PointStruct,
-    VectorParams,
-)
 
-from src.utils.config import QDRANT_URL
+from src.retrieval.chroma_db import get_collection
+from src.utils.config import EMBEDDING_MODEL
 
-# ── constants ─────────────────────────────────────────────────────────────────
+_log = logging.getLogger(__name__)
+
 COLLECTION_NAME = "3gpp_r17_5gcore"
-VECTOR_DIM = 384  # all-MiniLM-L6-v2 produces 384-dim vectors
-BATCH_SIZE = 128
-
-CHUNKS_PATH = Path("data/chunks.jsonl")
-EMBEDDINGS_PATH = Path("data/embeddings.npy")
-IDS_PATH = Path("data/embedding_ids.json")
+VECTOR_DIM = 384  # all-MiniLM-L6-v2
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
-
-def _point_id(chunk_id: str) -> str:
-    """Convert a hex chunk_id to a UUID string for Qdrant.
-    Deterministic: same chunk always maps to the same Qdrant point ID."""
-    # chunk_id is a 32-char hex string — pad to 32 bytes for UUID
-    return str(uuid.UUID(chunk_id.ljust(32, "0")[:32]))
-
-
-def get_client() -> QdrantClient:
-    """Get Qdrant client instance."""
-    return QdrantClient(url=QDRANT_URL)
-
-
-def ensure_collection(client: QdrantClient) -> None:
-    """Create collection if it does not already exist."""
-    existing = [c.name for c in client.get_collections().collections]
-    if COLLECTION_NAME not in existing:
-        client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
-        )
-        print(f"Created collection '{COLLECTION_NAME}'")
-    else:
-        print(f"Collection '{COLLECTION_NAME}' already exists")
-
-
-def load_data(limit: int | None = None) -> tuple[list[dict], np.ndarray, list[str]]:
-    """Load chunks, embeddings, and the ordered ID list."""
-    chunks_by_id = {
-        c["chunk_id"]: c
-        for c in (json.loads(l) for l in CHUNKS_PATH.read_text(encoding="utf-8").splitlines())
-    }
-    emb_ids: list[str] = json.loads(IDS_PATH.read_text(encoding="utf-8"))
-    embeddings: np.ndarray = np.load(EMBEDDINGS_PATH)
-
-    if limit:
-        emb_ids = emb_ids[:limit]
-        embeddings = embeddings[:limit]
-
-    return chunks_by_id, embeddings, emb_ids
-
-
-def index(client: QdrantClient, chunks_by_id: dict, embeddings: np.ndarray,
-          emb_ids: list[str]) -> int:
+def index(chunks_by_id: dict, embeddings: np.ndarray, emb_ids: list[str]) -> int:
     """
-    Upsert chunks into Qdrant using deterministic UUID point IDs.
-    Chunks already in the collection are skipped (upsert is idempotent).
-    Returns number of points uploaded this run.
+    Upsert chunks into Chroma.
+
+    Args:
+        chunks_by_id:  {chunk_id: chunk_dict}
+        embeddings:    (N, 384) array of pre-computed vectors
+        emb_ids:       list of chunk IDs (matching embeddings order)
+
+    Returns:
+        Number of new chunks indexed this run
     """
-    points = []
-    for i, chunk_id in enumerate(emb_ids):
-        c = chunks_by_id[chunk_id]
-        points.append(PointStruct(
-            id=_point_id(chunk_id),        # deterministic UUID, not row index
-            vector=embeddings[i].tolist(),
-            payload={
-                "chunk_id":      c["chunk_id"],
-                "spec":          c["spec"],
-                "release":       c["release"],
-                "version":       c["version"],
-                "section":       c["section"],
-                "section_title": c["section_title"],
-                "parent_section":c["parent_section"],
-                "page_start":    c["page_start"],
-                "page_end":      c["page_end"],
-                "text":          c["text"],
-                "source_type":   c.get("source_type", "3gpp_official"),
-                "document":      c.get("document", ""),
-            },
-        ))
+    collection = get_collection()
 
-    for start in range(0, len(points), BATCH_SIZE):
-        batch = points[start: start + BATCH_SIZE]
-        client.upsert(collection_name=COLLECTION_NAME, points=batch)
-        print(f"  upserted {min(start + BATCH_SIZE, len(points))}/{len(points)}", end="\r")
+    total = 0
+    batch_size = 100
 
-    print()
-    return len(points)
+    for batch_start in range(0, len(emb_ids), batch_size):
+        batch_end = min(batch_start + batch_size, len(emb_ids))
+        batch_ids = emb_ids[batch_start:batch_end]
+        batch_embeddings = embeddings[batch_start:batch_end]
+
+        ids = []
+        documents = []
+        metadatas = []
+        embeddings_list = []
+
+        for chunk_id, emb in zip(batch_ids, batch_embeddings):
+            if chunk_id in chunks_by_id:
+                chunk = chunks_by_id[chunk_id]
+                ids.append(chunk_id)
+                documents.append(chunk.get("text", ""))
+
+                # Build metadata
+                metadata = {
+                    "spec": chunk.get("spec", ""),
+                    "release": str(chunk.get("release", "17")),
+                    "section": chunk.get("section", ""),
+                    "section_title": chunk.get("section_title", ""),
+                    "page": str(chunk.get("page", "")),
+                    "page_start": str(chunk.get("page_start", "")),
+                    "page_end": str(chunk.get("page_end", "")),
+                    "parent_section": chunk.get("parent_section", ""),
+                    "source_type": chunk.get("source_type", "3gpp_official"),
+                    "document": chunk.get("document", ""),
+                }
+                metadatas.append(metadata)
+                embeddings_list.append(emb.tolist())
+
+        # Insert into Chroma
+        if ids:
+            collection.add(
+                ids=ids,
+                documents=documents,
+                metadatas=metadatas,
+                embeddings=embeddings_list,
+            )
+            total += len(ids)
+            _log.info(f"Indexed batch {batch_start // batch_size + 1}: {len(ids)} chunks")
+
+    return total
 
 
-def query_top5(client: QdrantClient, vector: list[float]) -> None:
-    """Query the collection and print the top 5 results."""
-    response = client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=vector,
-        limit=5,
-        with_payload=True,
-    )
-    results = response.points
-    print("\nTop 5 results:")
-    print("-" * 60)
-    for r in results:
-        p = r.payload
-        print(f"  score={r.score:.4f}  spec={p['spec']}  "
-              f"section={p['section']}  pages={p['page_start']}-{p['page_end']}")
-        print(f"  title : {p['section_title']}")
-        print(f"  text  : {' '.join(p['text'].split()[:20])} ...")
-        print()
+def main():
+    """
+    Load chunks and embeddings from disk, then index into Chroma.
+    """
+    print("=" * 70)
+    print("INDEXING: Chunks + Embeddings → Chroma")
+    print("=" * 70)
 
+    # Load chunks
+    chunks_file = Path("data/chunks.jsonl")
+    print(f"\n[1/3] Loading chunks from {chunks_file}...")
+    chunks_by_id = {}
+    with open(chunks_file, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                chunk = json.loads(line)
+                chunks_by_id[chunk["chunk_id"]] = chunk
+    print(f"✓ Loaded {len(chunks_by_id)} chunks")
 
-def main(test_mode: bool = False):
-    limit = 100 if test_mode else None
-    if test_mode:
-        print("TEST MODE — indexing first 100 chunks only")
+    # Load embeddings
+    embeddings_file = Path("data/embeddings.npy")
+    print(f"\n[2/3] Loading embeddings from {embeddings_file}...")
+    embeddings = np.load(embeddings_file)
+    print(f"✓ Loaded embeddings: shape {embeddings.shape}")
 
-    client = get_client()
-    ensure_collection(client)
+    # Load embedding IDs
+    emb_ids_file = Path("data/embedding_ids.json")
+    print(f"\n[3/3] Loading embedding IDs from {emb_ids_file}...")
+    with open(emb_ids_file, encoding="utf-8") as f:
+        emb_ids = json.load(f)
+    print(f"✓ Loaded {len(emb_ids)} embedding IDs")
 
-    print("Loading data ...")
-    chunks_by_id, embeddings, emb_ids = load_data(limit=limit)
-    print(f"Chunks to index: {len(emb_ids)}")
+    # Verify counts match
+    if len(chunks_by_id) != len(embeddings) or len(embeddings) != len(emb_ids):
+        print(f"✗ Count mismatch: chunks={len(chunks_by_id)}, emb={len(embeddings)}, ids={len(emb_ids)}")
+        return
 
-    print("Indexing ...")
-    total = index(client, chunks_by_id, embeddings, emb_ids)
-    print(f"Stored {total} points in '{COLLECTION_NAME}'")
+    print(f"\n[4/4] Indexing into Chroma...")
+    indexed = index(chunks_by_id, embeddings, emb_ids)
 
-    # verify count in Qdrant
-    count = client.count(collection_name=COLLECTION_NAME).count
-    print(f"Qdrant reports {count} points in collection")
+    # Verify
+    collection = get_collection()
+    count = collection.count()
 
-    # run a sample query using the first vector
-    print("\nSample query (using first chunk vector) ...")
-    query_top5(client, embeddings[0].tolist())
+    print("\n" + "=" * 70)
+    print(f"✓ Indexed {indexed} chunks into Chroma")
+    print(f"✓ Chroma collection now contains {count} total records")
+    print("=" * 70)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--test", action="store_true", help="Index first 100 chunks only")
-    args = parser.parse_args()
-    main(test_mode=args.test)
+    main()

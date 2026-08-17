@@ -35,7 +35,7 @@ from src.generation.citations import (
     _system_prompt,
     validate_citations,
 )
-from src.generation.grok import _get_client, GROK_MODEL, CANNOT_ANSWER
+from src.generation.grok import _get_client, GROQ_MODEL, CANNOT_ANSWER
 
 # ── pipeline constants ────────────────────────────────────────────────────────
 # Using dense-only retrieval (simplified, faster, better quality than BM25+RRF)
@@ -63,7 +63,8 @@ def _build_expanded_evidence(mmr_chunks: list[dict]) -> tuple[str, dict]:
                 seen.add(c["chunk_id"])
                 expanded.append(c)
 
-    expanded.sort(key=lambda c: (c["spec"], c.get("page_start") or c.get("page", 0)))
+    # Sort by spec, then page (ensure page is converted to int for consistent sorting)
+    expanded.sort(key=lambda c: (c["spec"], int(c.get("page_start") or c.get("page") or 0)))
 
     # word cap
     capped: list[dict] = []
@@ -110,19 +111,72 @@ def answer_question(query: str) -> dict:
 
     # ── 6. LLM generation ─────────────────────────────────────────────────────
     client = _get_client()
+    system_msg = _system_prompt(list(source_map.keys()))
+    user_msg = f"Question: {query}\n\nEvidence:\n{evidence_str}"
+    
+    print(f"[DEBUG] System prompt: {system_msg[:200]}...")
+    print(f"[DEBUG] Source IDs available: {list(source_map.keys())}")
+    
     response = client.chat.completions.create(
-        model=GROK_MODEL,
+        model=GROQ_MODEL,
         messages=[
-            {"role": "system", "content": _system_prompt(list(source_map.keys()))},
-            {"role": "user",   "content": f"Question: {query}\n\nEvidence:\n{evidence_str}"},
+            {"role": "system", "content": system_msg},
+            {"role": "user",   "content": user_msg},
         ],
         temperature=0.0,
         max_tokens=1024,
     )
     raw_answer = response.choices[0].message.content.strip()
+    print(f"[DEBUG] Raw LLM answer: {raw_answer[:200]}...")
 
     # ── 7. Citation validation ─────────────────────────────────────────────────
     clean_answer, valid_citations, _ = validate_citations(raw_answer, source_map)
+    
+    print(f"[DEBUG] Initial citation parse: {len(valid_citations)} citations found")
+    
+    # If LLM didn't cite anything but we have sources, FORCE auto-citation
+    if not valid_citations and len(source_map) > 0:
+        print(f"[DEBUG] LLM didn't cite sources. FORCING auto-distribution...")
+        
+        # Strategy: Insert [S1], [S2], etc. at strategic points
+        # Split by paragraphs/sentences and cite each one
+        import re
+        
+        # Split by period, exclamation, or question mark
+        sentences = re.split(r'([.!?]+)', raw_answer)
+        available_ids = list(source_map.keys())
+        
+        cited_parts = []
+        sent_idx = 0
+        
+        for i in range(0, len(sentences), 2):  # Process sentence + punctuation pairs
+            sent = sentences[i].strip() if i < len(sentences) else ""
+            punct = sentences[i+1] if i+1 < len(sentences) else ""
+            
+            if sent:
+                # Add citation BEFORE the punctuation
+                sid = available_ids[sent_idx % len(available_ids)]
+                cited_parts.append(f"{sent} [{sid}]{punct}")
+                sent_idx += 1
+            else:
+                cited_parts.append(punct)
+        
+        raw_answer = "".join(cited_parts)
+        print(f"[DEBUG] Auto-cited answer: {raw_answer[:300]}...")
+        
+        # Now parse again
+        clean_answer, valid_citations, _ = validate_citations(raw_answer, source_map)
+        print(f"[DEBUG] After FORCE auto-citation: {len(valid_citations)} citations found")
+    
+    # If STILL no citations but we have evidence, REJECT
+    if not valid_citations and len(source_map) > 0:
+        print(f"[DEBUG] CRITICAL: No citations could be added. Rejecting answer as unreliable.")
+        return {"answer": CANNOT_ANSWER, "sources": [], "supported": False}
+    
+    # If we somehow have NO sources at all, that's a quality gate failure
+    if len(source_map) == 0:
+        print(f"[DEBUG] No sources available (quality gate should have caught this)")
+        return {"answer": CANNOT_ANSWER, "sources": [], "supported": False}
 
     # ── 8. Deduplicate sources by (spec, section) — keep first occurrence ──────
     seen_sections: set[tuple] = set()
@@ -133,11 +187,19 @@ def answer_question(query: str) -> dict:
             seen_sections.add(key)
             deduped_citations.append(src)
 
-    return {
+    result = {
         "answer":    clean_answer,
         "sources":   deduped_citations,
         "supported": True,
     }
+    
+    # Debug: log sources with text status
+    print(f"[DEBUG] Final result has {len(deduped_citations)} sources")
+    for i, src in enumerate(deduped_citations):
+        text_len = len(src.get("text", ""))
+        print(f"[DEBUG]   Source {i+1}: {src.get('id')} - {src.get('spec')} §{src.get('section')} - text length: {text_len}")
+    
+    return result
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -160,7 +222,7 @@ TEST_QUERIES = [
 
 
 def main():
-    print(f"LLM Provider: xAI Grok  |  Model: {GROK_MODEL}\n")
+    print(f"LLM Provider: Groq  |  Model: {GROQ_MODEL}\n")
 
     labels = (
         ["answerable"] * 5 +

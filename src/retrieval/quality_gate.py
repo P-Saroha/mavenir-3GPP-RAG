@@ -35,26 +35,30 @@ def check(candidates: list[dict]) -> dict:
     Returns:
         {"supported": bool, "reason": str, "evidence": list[dict]}
     """
+    print(f"[QG DEBUG] Quality gate check: {len(candidates)} candidates received")
+    for i, c in enumerate(candidates[:5]):  # Log top 5
+        score = c.get("rerank_score", 0.0)
+        print(f"[QG DEBUG]   Candidate {i+1}: score={score:.3f}, chunk_id={c.get('chunk_id', '?')}, section={c.get('section', '?')}")
+    
     # 1. enough candidates?
     if len(candidates) < MIN_EVIDENCE_COUNT:
+        msg = f"Insufficient evidence: only {len(candidates)} candidate(s) retrieved (minimum {MIN_EVIDENCE_COUNT})."
+        print(f"[QG DEBUG] REJECTED: {msg}")
         return {
             "supported": False,
-            "reason": (
-                f"Insufficient evidence: only {len(candidates)} candidate(s) retrieved "
-                f"(minimum {MIN_EVIDENCE_COUNT})."
-            ),
+            "reason": msg,
             "evidence": [],
         }
 
     # 2. at least one strong enough score?
     best_score = max(c.get("rerank_score", 0.0) for c in candidates)
+    print(f"[QG DEBUG] Best rerank score: {best_score:.3f}, threshold: {MIN_RERANK_SCORE}")
     if best_score < MIN_RERANK_SCORE:
+        msg = f"Evidence too weak: best reranker score {best_score:.3f} is below threshold {MIN_RERANK_SCORE}."
+        print(f"[QG DEBUG] REJECTED: {msg}")
         return {
             "supported": False,
-            "reason": (
-                f"Evidence too weak: best reranker score {best_score:.3f} "
-                f"is below threshold {MIN_RERANK_SCORE}."
-            ),
+            "reason": msg,
             "evidence": [],
         }
 
@@ -62,18 +66,19 @@ def check(candidates: list[dict]) -> dict:
     for c in candidates:
         missing = [f for f in REQUIRED_METADATA if not c.get(f)]
         if missing:
+            msg = f"Candidate '{c.get('chunk_id', '?')}' missing metadata: {missing}."
+            print(f"[QG DEBUG] REJECTED: {msg}")
             return {
                 "supported": False,
-                "reason": f"Candidate '{c.get('chunk_id', '?')}' missing metadata: {missing}.",
+                "reason": msg,
                 "evidence": [],
             }
 
+    msg = f"Evidence supported: {len(candidates)} candidate(s), best score {best_score:.3f}."
+    print(f"[QG DEBUG] PASSED: {msg}")
     return {
         "supported": True,
-        "reason": (
-            f"Evidence supported: {len(candidates)} candidate(s), "
-            f"best score {best_score:.3f}."
-        ),
+        "reason": msg,
         "evidence": candidates,
     }
 

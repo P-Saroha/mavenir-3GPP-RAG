@@ -83,8 +83,10 @@ def expand_chunk(chunk: dict, corpus: list[dict], window: int = EXPAND_WINDOW) -
     cid = chunk["chunk_id"]
     spec = chunk["spec"]
     section = chunk["section"]
-    page_start = chunk.get("page_start") or chunk.get("page", 0)
-    page_end = chunk.get("page_end") or chunk.get("page", 0)
+    
+    # Safely convert to integers (Chroma returns strings for metadata)
+    page_start = int(chunk.get("page_start") or chunk.get("page") or 0)
+    page_end = int(chunk.get("page_end") or chunk.get("page") or 0)
 
     # find the chunk's index in the ordered corpus
     idx = next((i for i, c in enumerate(corpus) if c["chunk_id"] == cid), None)
@@ -110,9 +112,13 @@ def expand_chunk(chunk: dict, corpus: list[dict], window: int = EXPAND_WINDOW) -
                 break
 
             # pages must be adjacent or overlapping
-            gap = (candidate["page_start"] - page_end
+            # Safely convert candidate pages to integers
+            cand_page_start = int(candidate.get("page_start") or candidate.get("page") or 0)
+            cand_page_end = int(candidate.get("page_end") or candidate.get("page") or 0)
+            
+            gap = (cand_page_start - page_end
                    if direction == +1
-                   else page_start - candidate["page_end"])
+                   else page_start - cand_page_end)
             if gap > PAGE_GAP:
                 break
 

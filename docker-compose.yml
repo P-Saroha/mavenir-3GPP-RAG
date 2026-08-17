@@ -1,9 +1,6 @@
-services:
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
-    volumes:
-      - ./qdrant_storage:/qdrant/storage
+services: {}
 
-## docker compose up -d
+## No services needed - Chroma runs in-memory (in-process)
+## To use persistent Chroma, configure in src/retrieval/chroma_db.py
+
+## docker compose up -d  # Not needed anymore!

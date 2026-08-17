@@ -81,6 +81,9 @@ def search(
         normalize_embeddings=True,
     ).tolist()
 
+    # DEBUG: Log vector dimension
+    _log.info(f"Query vector dimension: {len(vector)}")
+
     # build payload filter
     conditions = [FieldCondition(key="release", match=MatchValue(value=release))]
     if spec:

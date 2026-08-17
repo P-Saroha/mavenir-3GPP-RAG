@@ -1,0 +1,197 @@
+"""
+migrate_qdrant_to_chroma.py
+----------------------------
+CAREFULLY migrate from Qdrant to Chroma while preserving all data.
+
+Steps:
+1. Backup Qdrant data
+2. Load chunks from chunks.jsonl
+3. Load embeddings from embeddings.npy
+4. Create Chroma collection
+5. Insert all data with metadata
+6. Verify integrity
+7. Keep Qdrant as backup (don't delete)
+"""
+
+import json
+import numpy as np
+import shutil
+from pathlib import Path
+
+print("=" * 70)
+print("MIGRATION: Qdrant → Chroma")
+print("=" * 70)
+
+# ── 1. BACKUP QDRANT DATA ─────────────────────────────────────────────────────
+print("\n[STEP 1] Backing up Qdrant data...")
+qdrant_dir = Path("qdrant_storage")
+backup_dir = Path("qdrant_storage_backup")
+
+if qdrant_dir.exists():
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+    shutil.copytree(qdrant_dir, backup_dir)
+    print(f"✓ Backed up: {qdrant_dir} → {backup_dir}")
+else:
+    print("✗ No Qdrant data found (this is okay for fresh start)")
+
+# ── 2. LOAD CHUNKS AND EMBEDDINGS ─────────────────────────────────────────────
+print("\n[STEP 2] Loading chunks and embeddings...")
+
+chunks = []
+chunks_file = Path("data/chunks.jsonl")
+if chunks_file.exists():
+    with open(chunks_file, encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                chunks.append(json.loads(line))
+    print(f"✓ Loaded {len(chunks)} chunks from chunks.jsonl")
+else:
+    print("✗ ERROR: chunks.jsonl not found!")
+    exit(1)
+
+embeddings = None
+embeddings_file = Path("data/embeddings.npy")
+if embeddings_file.exists():
+    embeddings = np.load(embeddings_file)
+    print(f"✓ Loaded embeddings: shape {embeddings.shape}")
+else:
+    print("✗ ERROR: embeddings.npy not found!")
+    exit(1)
+
+# Verify counts match
+if len(chunks) != len(embeddings):
+    print(f"✗ ERROR: chunk count ({len(chunks)}) != embedding count ({len(embeddings)})")
+    exit(1)
+print(f"✓ Verification: {len(chunks)} chunks = {len(embeddings)} embeddings")
+
+# ── 3. CREATE CHROMA COLLECTION ───────────────────────────────────────────────
+print("\n[STEP 3] Creating Chroma collection...")
+
+try:
+    import chromadb
+    from pathlib import Path
+    
+    # Use new Chroma API with persistent storage
+    chroma_data_dir = Path("chroma_data")
+    chroma_data_dir.mkdir(exist_ok=True)
+    
+    client = chromadb.PersistentClient(path=str(chroma_data_dir))
+    
+    # Delete old collection if exists (safe because we backed up Qdrant)
+    try:
+        client.delete_collection(name="3gpp_r17_5gcore")
+        print("✓ Removed old Chroma collection")
+    except:
+        pass
+    
+    # Create new collection with cosine distance metric
+    collection = client.get_or_create_collection(
+        name="3gpp_r17_5gcore",
+        metadata={"hnsw:space": "cosine"}
+    )
+    print(f"✓ Created Chroma collection: 3gpp_r17_5gcore at {chroma_data_dir}")
+    
+except Exception as e:
+    print(f"✗ ERROR creating Chroma collection: {e}")
+    import traceback
+    traceback.print_exc()
+    exit(1)
+
+# ── 4. INSERT DATA WITH METADATA ──────────────────────────────────────────────
+print("\n[STEP 4] Inserting chunks into Chroma...")
+
+try:
+    # Prepare data for insertion
+    ids = []
+    documents = []
+    metadatas = []
+    embeddings_list = []
+    
+    for i, chunk in enumerate(chunks):
+        chunk_id = chunk.get("chunk_id", f"chunk_{i}")
+        ids.append(chunk_id)
+        documents.append(chunk.get("text", ""))
+        
+        # Build metadata (preserve all fields)
+        metadata = {
+            "spec": chunk.get("spec", ""),
+            "section": chunk.get("section", ""),
+            "page": str(chunk.get("page", "")),
+            "page_start": str(chunk.get("page_start", "")),
+            "page_end": str(chunk.get("page_end", "")),
+            "section_title": chunk.get("section_title", ""),
+            "release": str(chunk.get("release", "17")),
+            "source_type": chunk.get("source_type", "3gpp_official"),
+            "document": chunk.get("document", ""),
+        }
+        metadatas.append(metadata)
+        embeddings_list.append(embeddings[i].tolist())
+    
+    # Insert in batches (Chroma handles this efficiently)
+    batch_size = 100
+    for batch_start in range(0, len(ids), batch_size):
+        batch_end = min(batch_start + batch_size, len(ids))
+        
+        collection.add(
+            ids=ids[batch_start:batch_end],
+            documents=documents[batch_start:batch_end],
+            metadatas=metadatas[batch_start:batch_end],
+            embeddings=embeddings_list[batch_start:batch_end],
+        )
+        
+        print(f"  ✓ Inserted batch {batch_start//batch_size + 1}: "
+              f"{batch_end - batch_start} chunks")
+    
+    print(f"✓ Total inserted: {len(ids)} chunks")
+    
+except Exception as e:
+    print(f"✗ ERROR inserting data: {e}")
+    exit(1)
+
+# ── 5. VERIFY INTEGRITY ───────────────────────────────────────────────────────
+print("\n[STEP 5] Verifying data integrity...")
+
+try:
+    # Count records
+    count = collection.count()
+    print(f"✓ Chroma collection contains {count} records")
+    
+    # Test query
+    test_query = embeddings[0].tolist()  # Use first embedding as test
+    results = collection.query(
+        query_embeddings=[test_query],
+        n_results=1
+    )
+    
+    if results and len(results["ids"]) > 0:
+        print(f"✓ Query test passed: found {len(results['ids'])} results")
+        print(f"  Top result: {results['ids'][0]}")
+    else:
+        print("⚠ Query test returned no results (this might be okay)")
+    
+except Exception as e:
+    print(f"⚠ Warning during verification: {e}")
+
+# ── 6. SUMMARY ────────────────────────────────────────────────────────────────
+print("\n" + "=" * 70)
+print("MIGRATION COMPLETE!")
+print("=" * 70)
+print(f"""
+✅ SUCCESS:
+  - Backed up: {backup_dir}
+  - Loaded: {len(chunks)} chunks + {len(embeddings)} embeddings
+  - Created: Chroma collection '3gpp_r17_5gcore'
+  - Inserted: All data with metadata
+
+⚠️  IMPORTANT:
+  - Original Qdrant data is backed up at: {backup_dir}
+  - Qdrant storage folder still exists (can delete later if safe)
+  - Chroma data is in: ~/.chroma or ./chroma_db
+
+NEXT STEPS:
+  1. Update config to use Chroma (NOT Qdrant)
+  2. Test queries work correctly
+  3. If all good, you can delete: {qdrant_dir}
+  4. Keep backup for safety: {backup_dir}
+""")

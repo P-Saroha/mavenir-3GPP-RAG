@@ -8,7 +8,7 @@ Metrics (computed on the 28 answerable questions):
   MRR    — Mean Reciprocal Rank (1/rank of first gold hit, 0 if not found)
 
 Systems compared:
-  1. dense_only   — Qdrant vector search
+  1. dense_only   — Chroma vector search
   2. bm25_only    — BM25 sparse search
   3. hybrid_rrf   — BM25 + dense fused with RRF
   4. hybrid_rerank — hybrid_rrf + cross-encoder reranking
@@ -30,7 +30,7 @@ import json
 import time
 from pathlib import Path
 
-from src.retrieval.dense_search  import search as dense_search
+from src.retrieval.dense_search_chroma import search as dense_search
 from src.retrieval.bm25          import search as bm25_search
 from src.retrieval.hybrid        import hybrid_search
 from src.retrieval.reranker      import rerank

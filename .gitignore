@@ -1,11 +1,11 @@
-# ── virtual environments ──────────────────────────────────────────────────────
+# ── Virtual Environments ─────────────────────────────────────────────────────
 .venv/
 myenv/
 venv/
 env/
 ENV/
 
-# ── Python cache ──────────────────────────────────────────────────────────────
+# ── Python Cache & Build ─────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
@@ -16,12 +16,12 @@ dist/
 build/
 *.egg
 
-# ── environment / secrets (DO NOT commit) ─────────────────────────────────────
+# ── Environment Variables & Secrets (DO NOT COMMIT) ──────────────────────────
 .env
 .env.local
 .env.*.local
 
-# ── data files (large / generated — not needed in repo) ──────────────────────
+# ── Large Generated Data Files (exclude, not needed in repo) ──────────────────
 data/pdfs/
 data/embeddings.npy
 data/embedding_ids.json
@@ -34,20 +34,23 @@ data/pdf_report.json
 data/retrieval_results.json
 data/answer_results.json
 data/ablation_results.json
+data/.upload_registry.json
 
-# ── Qdrant local storage (generated at runtime) ────────────────────────────────
+# ── Vector Database Storage (runtime generated) ───────────────────────────────
+chroma_data/
 qdrant_storage/
-data/qdrant_storage/
+qdrant_storage_backup/
 
-# ── pytest / test cache ───────────────────────────────────────────────────────
+# ── Pytest & Test Coverage ───────────────────────────────────────────────────
 .pytest_cache/
 .cache/
 htmlcov/
 .coverage
 .coverage.*
 coverage.xml
+PYTEST_RESULTS.json
 
-# ── IDE / editor ──────────────────────────────────────────────────────────────
+# ── IDE & Editor ──────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.suo
@@ -57,30 +60,32 @@ coverage.xml
 *~
 .DS_Store
 Thumbs.db
+.directory
 
-# ── Temporary / debug files ───────────────────────────────────────────────────
+# ── Temporary & Debug Files ──────────────────────────────────────────────────
 *.log
 *.tmp
 *.bak
 *.swp
 _*.py
-test_*.py
 debug_*.py
 
-# ── Jupyter notebooks (if any) ────────────────────────────────────────────────
+# ── Jupyter Notebooks ────────────────────────────────────────────────────────
 .ipynb_checkpoints/
 *.ipynb
 
-# ── OS generated files ────────────────────────────────────────────────────────
+# ── OS Generated Files ───────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 .directory
 
-# ── Misc generated files ──────────────────────────────────────────────────────
+# ── Serialized Data ──────────────────────────────────────────────────────────
 *.pkl
 *.pickle
 *.json.bak
 *.jsonl.bak
 
-
-AUDIT_REPORT.md
+# ── Miscellaneous ────────────────────────────────────────────────────────────
+VERIFICATION.txt
+*.txt.bak
+.directory

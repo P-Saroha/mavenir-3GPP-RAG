@@ -14,7 +14,7 @@ Usage:
 """
 
 from src.retrieval.bm25 import search as bm25_search
-from src.retrieval.dense_search import search as dense_search
+from src.retrieval.dense_search_chroma import search as dense_search
 
 RRF_K = 60          # standard RRF constant
 CANDIDATE_K = 20    # candidates fetched from each retriever

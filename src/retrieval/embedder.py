@@ -1,7 +1,7 @@
 """
 src/retrieval/embedder.py
 --------------------------
-Generates dense embeddings for all chunks using nomic-embed-text-v1.5.
+Generates dense embeddings for all chunks using all-MiniLM-L6-v2.
 
 Outputs:
     data/embeddings.npy        — float32 array, shape (N, 768)
@@ -36,8 +36,7 @@ IDS_PATH = Path("data/embedding_ids.json")
 CACHE_PATH = Path("data/embedding_cache.json")  # {chunk_id: text_sha1}
 
 # sentence-transformers/all-MiniLM-L6-v2 produces 384-dim vectors
-# nomic-embed-text-v1.5 produces 768-dim vectors
-DOCUMENT_PREFIX = ""  # all-MiniLM doesn't use document prefixes
+# all-MiniLM doesn't use document prefixes
 BATCH_SIZE = 128
 
 

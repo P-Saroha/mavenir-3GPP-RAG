@@ -3,7 +3,7 @@ tests/test_rag.py
 -----------------
 Tests for src/rag.py — the complete end-to-end RAG pipeline.
 
-Uses xAI Grok API (ONLY LLM provider).
+Uses Groq API (free tier).
 """
 
 from unittest.mock import patch, MagicMock
@@ -52,7 +52,7 @@ def test_unrelated_returns_cannot_answer():
     assert result["answer"] == CANNOT_ANSWER
 
 
-# ── answerable queries (mocked LLM) ───────────────────────────────────────────
+# ── answerable queries (mocked LLM) ───────────────────────────────────────
 
 def test_answerable_query_supported():
     with patch("src.rag._get_client") as mock_c:
@@ -84,9 +84,9 @@ def test_invalid_citation_replaced():
         assert "[INVALID]" in result["answer"] or result["sources"] == []
 
 
-# ── integration: live queries ─────────────────────────────────────────────────
+# ── integration: live queries (Groq) ─────────────────────────────────────
 
-@pytest.mark.skip(reason="Requires xAI API credits")
+@pytest.mark.skip(reason="Requires Groq API key")
 @pytest.mark.parametrize("query", [
     "What is the role of the AMF in 5G core network?",
     "Explain the UPF function in the user plane.",
@@ -101,7 +101,7 @@ def test_live_answerable(query):
     assert len(result["sources"]) > 0
 
 
-@pytest.mark.skip(reason="Requires xAI API credits")
+@pytest.mark.skip(reason="Requires Groq API key")
 @pytest.mark.parametrize("query", [
     "What is the capital of France?",
     "How do I train a neural network from scratch?",

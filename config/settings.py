@@ -17,17 +17,17 @@ class Settings(BaseSettings):
         extra="ignore",          # silently ignore unrecognised env vars
     )
 
-    # ── LLM: Grok ────────────────────────────────────────────────────────────────
-    grok_api_key: str = Field(default="", alias="GROK_API_KEY")
-    grok_base_url: str = Field(default="https://api.x.ai/v1", alias="GROK_BASE_URL")
-    grok_model: str = Field(default="grok-3-mini", alias="GROK_MODEL")
+    # ── LLM: Groq ────────────────────────────────────────────────────────────────
+    groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
+    groq_base_url: str = Field(default="https://api.groq.com/openai/v1", alias="GROQ_BASE_URL")
+    groq_model: str = Field(default="llama-3.1-70b-versatile", alias="GROQ_MODEL")
 
     # ── LLM: Ollama fallback ──────────────────────────────────────────────────────
     ollama_base_url: str = Field(default="http://localhost:11434/v1", alias="OLLAMA_BASE_URL")
     ollama_model: str = Field(default="mistral", alias="OLLAMA_MODEL")
 
     # ── Embedding ─────────────────────────────────────────────────────────────────
-    embed_model: str = Field(default="nomic-ai/nomic-embed-text-v1.5", alias="EMBED_MODEL")
+    embed_model: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", alias="EMBED_MODEL")
     embed_device: str = Field(default="cpu", alias="EMBED_DEVICE")
 
     # ── Reranker ──────────────────────────────────────────────────────────────────
@@ -35,12 +35,6 @@ class Settings(BaseSettings):
         default="cross-encoder/ms-marco-MiniLM-L6-v2", alias="RERANKER_MODEL"
     )
     reranker_device: str = Field(default="cpu", alias="RERANKER_DEVICE")
-
-    # ── Qdrant ────────────────────────────────────────────────────────────────────
-    qdrant_url: str = Field(default="", alias="QDRANT_URL")
-    qdrant_api_key: str = Field(default="", alias="QDRANT_API_KEY")
-    qdrant_collection: str = Field(default="3gpp_r17", alias="QDRANT_COLLECTION")
-    qdrant_local_path: str = Field(default="./data/qdrant_storage", alias="QDRANT_LOCAL_PATH")
 
     # ── Retrieval ─────────────────────────────────────────────────────────────────
     dense_top_k: int = Field(default=20, alias="DENSE_TOP_K")
@@ -60,9 +54,9 @@ class Settings(BaseSettings):
     pdf_dir: str = Field(default="./data/pdfs", alias="PDF_DIR")
 
     @property
-    def use_grok(self) -> bool:
-        """True when a Grok API key is present; fall back to Ollama otherwise."""
-        return bool(self.grok_api_key)
+    def use_groq(self) -> bool:
+        """True when a Groq API key is present; fall back to Ollama otherwise."""
+        return bool(self.groq_api_key)
 
 
 # Module-level singleton — import this everywhere.
