@@ -163,9 +163,17 @@ def ingest_pdf(pdf_path: str) -> dict:
         embedding_ids = json.loads(IDS_PATH.read_text())
         
         # Get existing IDs from Chroma to avoid duplicates
-        existing_ids_result = collection.get(include=[])
-        existing_ids = set(existing_ids_result["ids"]) if existing_ids_result["ids"] else set()
-        print(f"  > Chroma has {len(existing_ids)} existing chunks")
+        try:
+            # Try to get existing chunk count
+            chroma_count = collection.count()
+            print(f"  > Chroma has {chroma_count} existing chunks")
+            
+            # If we can get ids, use them
+            existing_ids_result = collection.get(include=[])
+            existing_ids = set(existing_ids_result.get("ids", [])) if existing_ids_result else set()
+        except Exception as e:
+            print(f"  > Could not check existing IDs ({e}), will rely on error handling")
+            existing_ids = set()
         
         # Only add NEW chunks (not already in Chroma)
         ids_to_add = []
@@ -200,15 +208,28 @@ def ingest_pdf(pdf_path: str) -> dict:
         
         # Add only new chunks to Chroma
         if ids_to_add:
-            collection.add(
-                ids=ids_to_add,
-                documents=documents_to_add,
-                metadatas=metadatas_to_add,
-                embeddings=embeddings_to_add
-            )
-            print(f"  > {len(ids_to_add)} NEW documents added to Chroma")
+            print(f"  > Adding {len(ids_to_add)} new chunks...")
+            try:
+                collection.add(
+                    ids=ids_to_add,
+                    documents=documents_to_add,
+                    metadatas=metadatas_to_add,
+                    embeddings=embeddings_to_add
+                )
+                print(f"  > SUCCESS: {len(ids_to_add)} new documents added to Chroma")
+            except Exception as add_error:
+                # If we still get duplicates, it means existing_ids detection failed
+                # Fall back to upsert (update existing or insert new)
+                print(f"  > Add failed ({add_error}), trying upsert instead...")
+                collection.upsert(
+                    ids=ids_to_add,
+                    documents=documents_to_add,
+                    metadatas=metadatas_to_add,
+                    embeddings=embeddings_to_add
+                )
+                print(f"  > SUCCESS: {len(ids_to_add)} documents upserted to Chroma")
         else:
-            print(f"  > All {len(chunks_list)} chunks already in Chroma (no duplicates)")
+            print(f"  > All {len(chunks_list)} chunks already in Chroma")
 
         # ── 9. Mark as completed ───────────────────────────────────────────────
         handler.mark_ingestion_completed(filename)
