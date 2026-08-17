@@ -157,7 +157,7 @@ def ingest_pdf(pdf_path: str) -> dict:
         print("Indexing into Chroma...")
         collection = get_collection()
         
-        # Load all chunks and embeddings
+        # Load all chunks and embeddings (load_chunks returns dicts, not objects)
         chunks_list = load_chunks(CHUNKS_PATH)
         embeddings = np.load(EMBEDDINGS_PATH)
         embedding_ids = json.loads(IDS_PATH.read_text())
@@ -169,21 +169,22 @@ def ingest_pdf(pdf_path: str) -> dict:
         embeddings_list = []
         
         for chunk in chunks_list:
-            ids.append(chunk.chunk_id)
-            documents.append(chunk.text)
+            chunk_id = chunk["chunk_id"]
+            ids.append(chunk_id)
+            documents.append(chunk["text"])
             metadatas.append({
-                "spec": chunk.spec,
-                "section": chunk.section,
-                "page": str(chunk.page_start),
-                "page_start": str(chunk.page_start),
-                "page_end": str(chunk.page_end),
-                "section_title": chunk.section_title,
-                "release": str(chunk.release),
-                "source_type": chunk.source_type,
-                "document": chunk.document,
+                "spec": chunk.get("spec", ""),
+                "section": chunk.get("section", ""),
+                "page": str(chunk.get("page_start", "")),
+                "page_start": str(chunk.get("page_start", "")),
+                "page_end": str(chunk.get("page_end", "")),
+                "section_title": chunk.get("section_title", ""),
+                "release": str(chunk.get("release", "")),
+                "source_type": chunk.get("source_type", "3gpp_official"),
+                "document": chunk.get("document", ""),
             })
         
-        # Find indices for new embeddings
+        # Find indices for all chunks in embeddings array
         for chunk_id in ids:
             idx = embedding_ids.index(chunk_id)
             embeddings_list.append(embeddings[idx].tolist())
