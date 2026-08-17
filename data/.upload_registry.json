@@ -16,8 +16,8 @@
   "TS_33.501_R17_v17.14.0.pdf.pdf": {
     "filename": "TS_33.501_R17_v17.14.0.pdf.pdf",
     "file_hash": "c76bfbee0858692133c673ab80fe4043288ee9eba259cc7bc58e6aa1f4952635",
-    "status": "uploaded",
-    "timestamp": "2026-08-17T21:04:09.602666",
-    "error_message": null
+    "status": "ingestion_failed",
+    "timestamp": "2026-08-17T21:10:33.303911",
+    "error_message": "Expected IDs to be unique, found 350 duplicated IDs: 217bee550bfc148975ae1a723d2d4c0a, b56c36c61a088b68d3376b66d6039165, f608a1f6e5d21609842382e4cf3827e0, f7fead6205225f414800966e7d0d1bf4, d550472c62efbf9f265f181b92fe4681, ..., c540681d3f56dbdea814a61e59782709, 471903bee0c598c01ac3ff6bdff5449c, 27d991ee9abd5c3752323d83c9f9c8fb, 4fe38e608acc1bfb93c88fd214dc0224, 73ece1ca4b8deb2f7e7a7a343f8cc8e8 in add."
   }
 }
