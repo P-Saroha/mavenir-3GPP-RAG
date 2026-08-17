@@ -7,22 +7,22 @@
       "mrr": 0.6232
     },
     "bm25_only": {
-      "hit@1": 0.2143,
-      "hit@3": 0.3571,
+      "hit@1": 0.25,
+      "hit@3": 0.3929,
       "hit@5": 0.4643,
-      "mrr": 0.2988
+      "mrr": 0.3274
     },
     "hybrid_rrf": {
-      "hit@1": 0.2857,
-      "hit@3": 0.6429,
-      "hit@5": 0.6786,
-      "mrr": 0.4435
+      "hit@1": 0.25,
+      "hit@3": 0.6071,
+      "hit@5": 0.7857,
+      "mrr": 0.4673
     },
     "hybrid_rerank": {
-      "hit@1": 0.4643,
-      "hit@3": 0.6429,
-      "hit@5": 0.75,
-      "mrr": 0.5726
+      "hit@1": 0.5,
+      "hit@3": 0.6786,
+      "hit@5": 0.7143,
+      "mrr": 0.5863
     }
   },
   "per_question": [
@@ -32,8 +32,8 @@
       "gold_spec": "23.501",
       "gold_section": "4.2.2",
       "dense_only_rank": 2,
-      "bm25_only_rank": 4,
-      "hybrid_rrf_rank": 3,
+      "bm25_only_rank": 3,
+      "hybrid_rrf_rank": 4,
       "hybrid_rerank_rank": 1
     },
     {
@@ -53,7 +53,7 @@
       "gold_section": "4.2.3",
       "dense_only_rank": 1,
       "bm25_only_rank": 3,
-      "hybrid_rrf_rank": 1,
+      "hybrid_rrf_rank": 2,
       "hybrid_rerank_rank": 1
     },
     {
@@ -63,7 +63,7 @@
       "gold_section": "6.2.3",
       "dense_only_rank": 1,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": 4,
+      "hybrid_rrf_rank": 2,
       "hybrid_rerank_rank": 1
     },
     {
@@ -94,7 +94,7 @@
       "dense_only_rank": 1,
       "bm25_only_rank": 1,
       "hybrid_rrf_rank": 1,
-      "hybrid_rerank_rank": 2
+      "hybrid_rerank_rank": 1
     },
     {
       "id": "arch_08",
@@ -104,7 +104,7 @@
       "dense_only_rank": 3,
       "bm25_only_rank": 1,
       "hybrid_rrf_rank": 1,
-      "hybrid_rerank_rank": 3
+      "hybrid_rerank_rank": 2
     },
     {
       "id": "proc_01",
@@ -113,7 +113,7 @@
       "gold_section": "4.3.2.1",
       "dense_only_rank": 1,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": 3,
+      "hybrid_rrf_rank": 2,
       "hybrid_rerank_rank": 1
     },
     {
@@ -123,7 +123,7 @@
       "gold_section": "4.3.2.2.1",
       "dense_only_rank": 3,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": 3,
+      "hybrid_rrf_rank": null,
       "hybrid_rerank_rank": null
     },
     {
@@ -133,8 +133,8 @@
       "gold_section": "4.3.2.3",
       "dense_only_rank": 2,
       "bm25_only_rank": 4,
-      "hybrid_rrf_rank": 3,
-      "hybrid_rerank_rank": 4
+      "hybrid_rrf_rank": 4,
+      "hybrid_rerank_rank": 2
     },
     {
       "id": "proc_04",
@@ -153,8 +153,8 @@
       "gold_section": "4.11.1.2.1",
       "dense_only_rank": 2,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": null,
-      "hybrid_rerank_rank": null
+      "hybrid_rrf_rank": 4,
+      "hybrid_rerank_rank": 4
     },
     {
       "id": "proc_06",
@@ -163,8 +163,8 @@
       "gold_section": "4.16.5.1",
       "dense_only_rank": 2,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": 2,
-      "hybrid_rerank_rank": 2
+      "hybrid_rrf_rank": 4,
+      "hybrid_rerank_rank": 3
     },
     {
       "id": "proc_07",
@@ -172,8 +172,8 @@
       "gold_spec": "23.501",
       "gold_section": "5.4.2",
       "dense_only_rank": 4,
-      "bm25_only_rank": 3,
-      "hybrid_rrf_rank": 2,
+      "bm25_only_rank": 2,
+      "hybrid_rrf_rank": 3,
       "hybrid_rerank_rank": 2
     },
     {
@@ -203,8 +203,8 @@
       "gold_section": "6.2.1.1.1",
       "dense_only_rank": 1,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": null,
-      "hybrid_rerank_rank": 5
+      "hybrid_rrf_rank": 2,
+      "hybrid_rerank_rank": null
     },
     {
       "id": "qos_03",
@@ -213,7 +213,7 @@
       "gold_section": "5.8.2.6.1",
       "dense_only_rank": 1,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": 3,
+      "hybrid_rrf_rank": 2,
       "hybrid_rerank_rank": 1
     },
     {
@@ -222,8 +222,8 @@
       "gold_spec": "23.503",
       "gold_section": "4.2.5",
       "dense_only_rank": 1,
-      "bm25_only_rank": 5,
-      "hybrid_rrf_rank": 1,
+      "bm25_only_rank": 4,
+      "hybrid_rrf_rank": 2,
       "hybrid_rerank_rank": 1
     },
     {
@@ -244,7 +244,7 @@
       "dense_only_rank": 5,
       "bm25_only_rank": null,
       "hybrid_rrf_rank": null,
-      "hybrid_rerank_rank": 4
+      "hybrid_rerank_rank": null
     },
     {
       "id": "cross_02",
@@ -273,7 +273,7 @@
       "gold_section": "5.6.9.2.2",
       "dense_only_rank": 1,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": null,
+      "hybrid_rrf_rank": 2,
       "hybrid_rerank_rank": null
     },
     {
@@ -293,8 +293,8 @@
       "gold_section": "3.1",
       "dense_only_rank": 2,
       "bm25_only_rank": null,
-      "hybrid_rrf_rank": null,
-      "hybrid_rerank_rank": 2
+      "hybrid_rrf_rank": 4,
+      "hybrid_rerank_rank": 3
     },
     {
       "id": "term_03",
@@ -302,8 +302,8 @@
       "gold_spec": "23.501",
       "gold_section": "5.6.9.2.3",
       "dense_only_rank": 2,
-      "bm25_only_rank": 2,
-      "hybrid_rrf_rank": 2,
+      "bm25_only_rank": 1,
+      "hybrid_rrf_rank": 1,
       "hybrid_rerank_rank": 1
     }
   ]

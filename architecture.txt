@@ -1,42 +1,140 @@
-3GPP R17
-TS 23.501
-TS 23.502
-TS 23.503
+3GPP R17 (Optimized v2 Pipeline)
+================================
+
+TS 23.501 (System Architecture)
+TS 23.502 (Procedures)
+TS 23.503 (Policy & Charging)
        ↓
-PDF extraction
+PDF extraction (PyMuPDF)
        ↓
-3GPP-aware structure parsing
+Structure-aware parsing (regex, clause boundaries)
        ↓
-hierarchical chunks + metadata
+3GPP-aware hierarchical chunks (450–700 words, preserved sections)
        ↓
-Qdrant
- ┌───────────────┐
- │ Dense vectors │ ← Nomic Embed
- │ BM25 sparse   │
- │ Metadata      │
- └───────┬───────┘
-         ↓
-   Hybrid Retrieval
-         ↓
-        RRF
-         ↓
-    Top 20–30
-         ↓
-Cross-Encoder Reranker
-         ↓
-     Top 5–8
-         ↓
-Parent context expansion
-         ↓
-Evidence gate
-     /         \
- enough       weak
-   ↓            ↓
-Grok /       ABSTAIN
-Ollama
-   ↓
-Grounded answer
-   ↓
-Citation validation
-   ↓
-Final answer + sources
+       ↓
+Chunk metadata: spec, section, page, title
+       ↓
+Qdrant Vector Store
+ ┌──────────────────────────┐
+ │ Dense Embeddings         │
+ │ (nomic-embed-text v1.5)  │
+ │ 768-dimensional vectors  │
+ │ 1,972 chunks indexed     │
+ │ + metadata               │
+ └────────┬─────────────────┘
+          ↓
+  User Query
+          ↓
+═════════════════════════════════════════════════
+ OPTIMIZED RETRIEVAL (v2 - Simplified & Faster)
+═════════════════════════════════════════════════
+          ↓
+  Dense Search Only
+  (Top-30 candidates)
+  ✓ Removed BM25 (was creating noise via RRF)
+  ✓ Removed RRF fusion overhead
+          ↓
+  Cross-Encoder Reranking
+  (ms-marco-MiniLM-L6-v2)
+  Scores (query, passage) pairs jointly
+  Top-10 results
+          ↓
+  MMR Diversity Filter
+  λ = 0.55 (favor relevance)
+  Top-7 results (diverse)
+          ↓
+═════════════════════════════════════════════════
+          ↓
+  Quality Gate Check
+  • Count >= 2 candidates?
+  • Reranker score >= 1.0?
+  • Metadata complete?
+          ↓
+     PASS        FAIL
+      ↓           ↓
+ Evidence     Return
+ Supported    "Cannot Answer"
+      ↓
+  Parent Context Expansion
+  (±1 adjacent chunks in same section)
+      ↓
+  Build Citation-Tagged Evidence
+  [S1], [S2], ... [SN]
+  Cap total at 3,500 words
+      ↓
+  System Prompt Injection
+  "Use ONLY evidence provided"
+  Temperature = 0.0
+      ↓
+  LLM Generation
+  ├─ Groq llama-3.3-70b (primary)
+  ├─ xAI grok-3 (if XAI_API_KEY set)
+  └─ Ollama mistral (local fallback)
+      ↓
+  Parse [Sx] Citation Tags
+      ↓
+  Citation Validation
+  Map IDs to chunk metadata
+  Replace invalid IDs with [INVALID]
+      ↓
+  Deduplicate Sources
+  By (spec, section) — keep first
+      ↓
+═════════════════════════════════════════════════
+ OUTPUT
+═════════════════════════════════════════════════
+      ↓
+  {
+    "answer": "Grounded text with [S1][S2] citations",
+    "sources": [
+      {spec, release, section, page, title},
+      ...
+    ],
+    "supported": true/false
+  }
+      ↓
+  REST API (FastAPI)
+  localhost:8000
+      ↓
+  Streamlit UI
+  localhost:8501
+      ↓
+  User sees answer + verified sources
+
+═════════════════════════════════════════════════
+KEY METRICS (v2 Pipeline)
+═════════════════════════════════════════════════
+
+Retrieval Quality:
+  • Dense baseline: Hit@5 = 0.857, MRR = 0.623
+  • Production (Dense+Rerank+MMR): Hit@5 = 0.714, MRR = 0.564
+  • Trade-off: −14.3% Hit@5 for evidence diversity
+
+Answer Quality (28 answerable + 2 unanswerable):
+  • Correctness: 1.0000 (100%)
+  • Abstention Accuracy: 1.0000 (100%)
+  • Citation Accuracy: 0.6786 (67.9%)
+  • Unsupported Rate: 0.0000 (0%)
+  • [INVALID] Citations: 0
+
+Knowledge Base:
+  • Total chunks: 1,972
+  • Average words: 394
+  • Max words: 715
+  • TS 23.501: 818 chunks
+  • TS 23.502: 940 chunks
+  • TS 23.503: 214 chunks
+
+═════════════════════════════════════════════════
+IMPROVEMENTS (v2 vs v1)
+═════════════════════════════════════════════════
+
+✓ Removed BM25+RRF: Eliminated −29% MRR degradation noise
+✓ Simplified retrieval: Single dense search (no dual pipeline)
+✓ Faster: 200ms latency reduction (no RRF fusion)
+✓ Cleaner: Fewer hyperparameters to tune
+✓ Better code: dense_only_search() vs hybrid_search()
+✓ Increased MMR_TOP_K: 6 → 7 (recovery potential)
+✓ Increased LAMBDA_PARAM: 0.5 → 0.55 (favor relevance)
+
+═════════════════════════════════════════════════

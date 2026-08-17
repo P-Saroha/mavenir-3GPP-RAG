@@ -26,8 +26,8 @@ import numpy as np
 from src.retrieval.reranker import retrieve_and_rerank
 
 # ── config ────────────────────────────────────────────────────────────────────
-LAMBDA_PARAM = 0.5      # balance between relevance and diversity
-MMR_TOP_K = 5           # final chunks returned
+LAMBDA_PARAM = 0.55     # balance between relevance (higher) and diversity (lower)
+MMR_TOP_K = 6           # final chunks returned
 
 EMBEDDINGS_PATH = Path("data/embeddings.npy")
 IDS_PATH        = Path("data/embedding_ids.json")

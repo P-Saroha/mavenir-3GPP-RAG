@@ -24,7 +24,7 @@ All internal details are hidden from the caller.
 
 from __future__ import annotations
 
-from src.retrieval.hybrid   import hybrid_search
+from src.retrieval.hybrid   import dense_only_search, hybrid_search
 from src.retrieval.reranker import rerank
 from src.retrieval.mmr      import mmr
 from src.retrieval.quality_gate import check
@@ -37,9 +37,10 @@ from src.generation.citations import (
 from src.generation.grok import _get_client, ACTIVE_MODEL, CANNOT_ANSWER
 
 # ── pipeline constants ────────────────────────────────────────────────────────
-HYBRID_TOP_K  = 30   # candidates from each retriever (balanced: more recall, less noise)
-RERANK_TOP_K  = 10   # after cross-encoder (increased from 8 for better diversity)
-MMR_TOP_K     = 6    # after MMR diversity filter (increased from 5)
+# Using dense-only retrieval (simplified, faster, better quality than BM25+RRF)
+DENSE_TOP_K   = 30   # candidates from dense search (no RRF noise)
+RERANK_TOP_K  = 10   # after cross-encoder
+MMR_TOP_K     = 7    # after MMR diversity filter
 MAX_EVIDENCE_WORDS = 3500  # slightly increased to accommodate extra source
 
 
@@ -87,8 +88,8 @@ def answer_question(query: str) -> dict:
             "supported": bool          # False if evidence was insufficient
         }
     """
-    # ── 1. Hybrid retrieval + RRF ──────────────────────────────────────────────
-    candidates = hybrid_search(query, top_k=HYBRID_TOP_K)
+    # ── 1. Dense-only retrieval (simplified, no BM25 noise) ──────────────────
+    candidates = dense_only_search(query, top_k=DENSE_TOP_K)
 
     # ── 2. Cross-encoder reranking ─────────────────────────────────────────────
     reranked = rerank(query, candidates, top_k=RERANK_TOP_K)

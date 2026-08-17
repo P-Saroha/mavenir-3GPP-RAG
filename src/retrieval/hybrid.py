@@ -18,6 +18,7 @@ from src.retrieval.dense_search import search as dense_search
 
 RRF_K = 60          # standard RRF constant
 CANDIDATE_K = 20    # candidates fetched from each retriever
+DENSE_CANDIDATE_K = 30  # increased for dense-only retrieval (no RRF noise)
 
 
 def rrf_fuse(ranked_lists: list[list[dict]], k: int = RRF_K) -> list[dict]:
@@ -45,6 +46,22 @@ def rrf_fuse(ranked_lists: list[list[dict]], k: int = RRF_K) -> list[dict]:
     ]
 
 
+def dense_only_search(
+    query: str,
+    top_k: int = 30,
+    spec: str | None = None,
+    release: str = "17",
+) -> list[dict]:
+    """
+    Dense-only retrieval (simplified, faster, higher quality).
+    Skips noisy BM25 + RRF fusion.
+
+    Returns top_k results sorted by cosine similarity score.
+    """
+    results = dense_search(query, top_k=top_k, spec=spec, release=release)
+    return results
+
+
 def hybrid_search(
     query: str,
     top_k: int = 20,
@@ -55,6 +72,8 @@ def hybrid_search(
     Hybrid retrieval: fetch CANDIDATE_K from BM25 and dense, fuse with RRF.
 
     Returns top_k results sorted by RRF score.
+    
+    NOTE: This adds BM25 noise. For better results, use dense_only_search().
     """
     bm25_results  = bm25_search(query, top_k=CANDIDATE_K)
     dense_results = dense_search(query, top_k=CANDIDATE_K, spec=spec, release=release)
