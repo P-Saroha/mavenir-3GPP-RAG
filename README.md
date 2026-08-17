@@ -1,24 +1,24 @@
 # 3GPP Release 17 RAG Chatbot
 
-A **Retrieval-Augmented Generation (RAG) chatbot** for 3GPP Release 17 5G Core specifications. Ask technical questions about 3GPP standards and get grounded answers with proper citations.
+A Retrieval-Augmented Generation (RAG) chatbot for 3GPP Release 17 5G Core specifications. Ask technical questions about 3GPP standards and get grounded answers with proper citations.
 
 ---
 
-## 🎯 Features
+## Features
 
-- **Semantic Search**: Dense vector embeddings (Chroma) + BM25 retrieval from 1,980 3GPP specification chunks
-- **Cross-Encoder Reranking**: Relevance scoring using MS-Marco cross-encoder
-- **Quality Gate**: Evidence validation with configurable thresholds
-- **Context Expansion**: Pulls adjacent sections for complete answers
-- **Citations**: All responses include `[S1]`, `[S2]` tags with source specs/sections/pages
-- **Persistent Storage**: Chroma database on disk (survives restarts)
-- **Free LLM**: Groq API (fast, high-quality, no cost)
-- **PDF Upload**: Add new 3GPP specs via Streamlit UI
-- **No Docker**: Everything runs locally in Python virtual environment
+- Semantic Search: Dense vector embeddings (Chroma) + BM25 retrieval from 1,980 3GPP specification chunks
+- Cross-Encoder Reranking: Relevance scoring using MS-Marco cross-encoder
+- Quality Gate: Evidence validation with configurable thresholds
+- Context Expansion: Pulls adjacent sections for complete answers
+- Citations: All responses include [S1], [S2] tags with source specs/sections/pages
+- Persistent Storage: Chroma database on disk (survives restarts)
+- Free LLM: Groq API (fast, high-quality, no cost)
+- PDF Upload: Add new 3GPP specs via Streamlit UI
+- No Docker: Everything runs locally in Python virtual environment
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - Python 3.11+
 - Virtual environment (myenv)
@@ -27,7 +27,7 @@ A **Retrieval-Augmented Generation (RAG) chatbot** for 3GPP Release 17 5G Core s
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone & Setup
 
@@ -56,10 +56,10 @@ python migrate_qdrant_to_chroma.py
 
 Output:
 ```
-✓ Loaded 1980 chunks from chunks.jsonl
-✓ Created Chroma collection: 3gpp_r17_5gcore
-✓ Total inserted: 1980 chunks
-✓ Chroma collection contains 1980 records
+Loaded 1980 chunks from chunks.jsonl
+Created Chroma collection: 3gpp_r17_5gcore
+Total inserted: 1980 chunks
+Chroma collection contains 1980 records
 ```
 
 ### 4. Start Backend
@@ -80,30 +80,30 @@ Opens: http://localhost:8501
 
 ---
 
-## 🔄 System Architecture
+## System Architecture
 
 ```mermaid
 graph TD
-    A["User Query<br/>(Streamlit)"]
-    B["Dense Retrieval<br/>(Chroma)<br/>~50ms → top 30"]
-    C["Cross-Encoder<br/>Reranking<br/>~500ms → top 10"]
-    D["MMR Diversity<br/>Filter<br/>~20ms → top 7"]
-    E["Quality Gate<br/>Validation<br/>~5ms"]
-    F["Reject?"]
-    G["Context<br/>Expansion<br/>~100ms"]
-    H["Citation<br/>Tagging<br/>~10ms"]
-    I["LLM Generation<br/>(Groq API)<br/>~2-3s"]
-    J["Citation<br/>Validation<br/>~50ms"]
-    K["Final Response<br/>Answer + Sources<br/>(Streamlit)"]
-    Z["Cannot Answer<br/>(Low Confidence)"]
+    A["User Query"]
+    B["Dense Retrieval"]
+    C["Cross-Encoder"]
+    D["MMR Filter"]
+    E["Quality Gate"]
+    F{Pass?}
+    G["Context Expansion"]
+    H["Citation Tagging"]
+    I["LLM Generation"]
+    J["Citation Validation"]
+    K["Final Response"]
+    Z["Cannot Answer"]
     
     A --> B
     B --> C
     C --> D
     D --> E
     E --> F
-    F -->|No: Pass| G
-    F -->|Yes: Reject| Z
+    F -->|Yes| G
+    F -->|No| Z
     G --> H
     H --> I
     I --> J
@@ -112,58 +112,58 @@ graph TD
 
 ### Pipeline Stages (Chroma-Based)
 
-**1. Dense Retrieval (Chroma)** - ~50ms
+**1. Dense Retrieval (Chroma)** - 50ms
 - Embed query with `all-MiniLM-L6-v2` (384-dim vectors)
 - Cosine similarity search in Chroma persistent database (./chroma_data/)
 - Returns: top 30 candidates with scores
 
-**2. Cross-Encoder Reranking** - ~500ms
+**2. Cross-Encoder Reranking** - 500ms
 - Score each (query, passage) pair with `ms-marco-MiniLM-L6-v2`
 - Sort by relevance score (logits: -1 to +8 range)
 - Returns: top 10 scored candidates
 
-**3. MMR Diversity Filter** - ~20ms
+**3. MMR Diversity Filter** - 20ms
 - Maximal Marginal Relevance algorithm
 - Balance relevance vs diversity (prevent redundancy)
 - Returns: top 7 diverse candidates
 
-**4. Quality Gate Validation** - ~5ms
-- Check: `best_score ≥ 0.5` (cross-encoder threshold)
-- Check: `candidate_count ≥ 2` (minimum evidence)
+**4. Quality Gate Validation** - 5ms
+- Check: `best_score >= 0.5` (cross-encoder threshold)
+- Check: `candidate_count >= 2` (minimum evidence)
 - Check: all have metadata (spec, section, page)
-- If PASS → continue; If FAIL → return "Cannot Answer"
+- If PASS -> continue; If FAIL -> return "Cannot Answer"
 
-**5. Context Expansion** - ~100ms
+**5. Context Expansion** - 100ms
 - For each candidate, find adjacent chunks
 - Pull same/parent/child sections within same spec
 - Word-cap evidence at 3,500 tokens
 
-**6. Citation Tagging** - ~10ms
+**6. Citation Tagging** - 10ms
 - Build evidence string with [S1], [S2]... tags
-- Format: `[spec §section — title (p.page)]`
+- Format: [spec section - title (p.page)]
 
-**7. LLM Generation** - ~2-3s
+**7. LLM Generation** - 2-3s
 - Call Groq API with `openai/gpt-oss-120b` model
 - System prompt includes citation rules + source list
 - Temperature: 0.0 (deterministic)
 - Max tokens: 1024
 
-**8. Citation Validation** - ~50ms
+**8. Citation Validation** - 50ms
 - Parse [Sx] tags from LLM response
 - Validate against source_map
 - Auto-cite if LLM forgot citations
 - Return final response
 
-**Total Time: ~3-4 seconds** end-to-end
+**Total Time: 3-4 seconds** end-to-end
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 f:\Projects\mavenir\
-├── README.md                 (This file - complete documentation)
-├── .env.example              (Template for configuration)
+├── README.md                 (Complete documentation)
+├── .env.example              (Configuration template)
 ├── .gitignore                (Git ignore rules)
 ├── requirements.txt          (Python dependencies)
 ├── docker-compose.yml        (Optional Docker setup)
@@ -174,8 +174,8 @@ f:\Projects\mavenir\
 │   ├── rag.py               (RAG pipeline orchestration)
 │   │
 │   ├── retrieval/           (Vector search & ranking)
-│   │   ├── chroma_db.py     (Chroma client - persistent storage at ./chroma_data/)
-│   │   ├── dense_search_chroma.py  (Semantic search in Chroma)
+│   │   ├── chroma_db.py     (Chroma client - persistent storage)
+│   │   ├── dense_search_chroma.py  (Semantic search)
 │   │   ├── reranker.py      (Cross-encoder scoring)
 │   │   ├── mmr.py           (Diversity filtering)
 │   │   ├── quality_gate.py  (Evidence validation)
@@ -219,7 +219,7 @@ f:\Projects\mavenir\
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### `.env` File
 
@@ -243,23 +243,23 @@ MMR_TOP_K=7                         # Diversity-filtered candidates
 
 ---
 
-## 📊 Performance Metrics
+## Performance Metrics
 
 | Stage | Time | Output |
 |-------|------|--------|
-| Dense search (Chroma) | ~50ms | 30 candidates |
-| Reranking (cross-encoder) | ~500ms | 10 scored candidates |
-| MMR filtering | ~20ms | 7 diverse candidates |
-| Quality gate | ~5ms | Pass/Reject decision |
-| Context expansion | ~100ms | Expanded chunks |
-| Citation tagging | ~10ms | Tagged evidence |
-| LLM generation (Groq) | ~2-3s | Final answer |
-| Citation validation | ~50ms | Cited response |
-| **Total** | **~3-4s** | **Cited answer** |
+| Dense search (Chroma) | 50ms | 30 candidates |
+| Reranking (cross-encoder) | 500ms | 10 scored candidates |
+| MMR filtering | 20ms | 7 diverse candidates |
+| Quality gate | 5ms | Pass/Reject decision |
+| Context expansion | 100ms | Expanded chunks |
+| Citation tagging | 10ms | Tagged evidence |
+| LLM generation (Groq) | 2-3s | Final answer |
+| Citation validation | 50ms | Cited response |
+| **Total** | **3-4s** | **Cited answer** |
 
 ---
 
-## 🧪 Testing
+## Testing
 
 Run all tests:
 ```bash
@@ -279,12 +279,12 @@ Key test files:
 
 ---
 
-## 📈 Adding New PDFs
+## Adding New PDFs
 
 ### Via Streamlit UI
-1. Click **"📄 Upload PDF"** in Streamlit
+1. Click "Upload PDF" in Streamlit
 2. Select 3GPP PDF (up to 200MB)
-3. Wait for: Parsing → Chunking → Embedding → Indexing to Chroma
+3. Wait for: Parsing -> Chunking -> Embedding -> Indexing to Chroma
 4. Query immediately (data auto-added to Chroma)
 
 ### Via CLI
@@ -292,12 +292,12 @@ Key test files:
 python -m src.ingestion.ingest <path_to_pdf>
 ```
 
-Processing time: ~30-60 min per 100 pages (CPU embedding)
+Processing time: 30-60 min per 100 pages (CPU embedding)
 For faster embedding: Use Google Colab with CUDA GPU
 
 ---
 
-## 🔍 Usage Examples
+## Usage Examples
 
 ### Via API
 ```bash
@@ -326,39 +326,39 @@ Response:
 ### Via Streamlit UI
 1. Open http://localhost:8501
 2. Type question in input box
-3. Click **Ask**
+3. Click "Ask"
 4. See answer + expandable source sections
 
 ---
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
-### ❌ "I cannot reliably answer"
+### "I cannot reliably answer"
 - **Cause**: Quality gate rejected evidence (score < 0.5 or < 2 chunks)
 - **Fix**: Lower `MIN_RERANK_SCORE` in `.env` to 0.3
 - **Debug**: Run `python diagnose_query.py` to see rerank scores
 
-### ❌ No sources found
+### No sources found
 - **Cause**: Chroma database empty or not started
 - **Fix**: Re-run `python migrate_qdrant_to_chroma.py`
 - **Check**: `python -c "from src.retrieval.chroma_db import get_collection; print(get_collection().count())"`
 
-### ❌ Slow embedding on PDF upload
-- **Cause**: CPU-based embedding (all-MiniLM-L6-v2 is ~6M params)
+### Slow embedding on PDF upload
+- **Cause**: CPU-based embedding (all-MiniLM-L6-v2 is 6M params)
 - **Fix**: Use Google Colab for GPU acceleration (5x faster)
-- **Time**: ~30 min per 100 pages on CPU
+- **Time**: 30 min per 100 pages on CPU
 
-### ❌ Groq API rate limit
-- **Cause**: Free tier has limits (~30 requests/min)
+### Groq API rate limit
+- **Cause**: Free tier has limits (30 requests/min)
 - **Fix**: Wait 1 minute or upgrade plan
 - **Status**: Check https://console.groq.com
 
 ---
 
-## 📚 Key Components
+## Key Components
 
 ### Dense Search (Chroma)
-- Semantic vector search from Chroma persistent database (`./chroma_data/`)
+- Semantic vector search from Chroma persistent database (./chroma_data/)
 - Returns top 30 candidates by cosine similarity
 - Embeddings: all-MiniLM-L6-v2 (384-dim, fast)
 
@@ -374,12 +374,12 @@ Response:
 
 ### Quality Gate
 - Validates evidence sufficiency
-- Checks: score ≥ MIN_RERANK_SCORE (0.5) AND count ≥ 2
+- Checks: score >= MIN_RERANK_SCORE (0.5) AND count >= 2
 - Rejects low-confidence evidence before LLM
 
 ### Context Expansion
 - Finds adjacent chunks in same section
-- Expands context by ±1 neighbor per side
+- Expands context by +/- 1 neighbor per side
 - Improves answer coherence
 
 ### Citation System
@@ -389,7 +389,7 @@ Response:
 
 ---
 
-## 🔐 Security Notes
+## Security Notes
 
 - **API Key**: Groq API key in `.env` (never commit to git)
 - **Local Processing**: Embeddings + reranking run locally (only LLM call goes to Groq)
@@ -398,13 +398,13 @@ Response:
 
 ---
 
-## 📝 License
+## License
 
 Project for Mavenir. 3GPP specifications are proprietary.
 
 ---
 
-## 🤝 Support
+## Support
 
 For issues:
 1. Check troubleshooting section above
@@ -414,7 +414,7 @@ For issues:
 
 ---
 
-## 📊 Data Summary
+## Data Summary
 
 | Metric | Value |
 |--------|-------|
@@ -423,11 +423,11 @@ For issues:
 | Embedding dimension | 384 (all-MiniLM-L6-v2) |
 | Database engine | Chroma (DuckDB + Parquet, persistent) |
 | Storage location | `./chroma_data/` (survives restarts) |
-| Query response time | ~3-4 seconds |
+| Query response time | 3-4 seconds |
 
 ---
 
-## 🚀 Future Enhancements
+## Future Enhancements
 
 - [ ] Web UI authentication (FastAPI + JWT)
 - [ ] GPU acceleration for embeddings
