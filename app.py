@@ -24,13 +24,13 @@ st.set_page_config(
 )
 
 # ── header ─────────────────────────────────────────────────────────────────────
-st.title("📡 3GPP Release 17 5G Core Assistant")
+st.title("3GPP Release 17 5G Core Assistant")
 st.caption(
     "Ask questions about 3GPP specifications. Every answer is grounded with citations to TS 23.501 · TS 23.502 · TS 23.503 — Release 17."
 )
 
 # ── PDF upload section ─────────────────────────────────────────────────────────
-with st.expander("📄 Upload PDF to expand knowledge base", expanded=False):
+with st.expander("Upload PDF to expand knowledge base", expanded=False):
     uploaded_file = st.file_uploader(
         "Upload a 3GPP specification PDF",
         type=["pdf"],
@@ -39,6 +39,7 @@ with st.expander("📄 Upload PDF to expand knowledge base", expanded=False):
 
     if uploaded_file is not None:
         import subprocess
+        import sys
         from pathlib import Path
 
         pdf_dir = Path("data/pdfs")
@@ -49,7 +50,7 @@ with st.expander("📄 Upload PDF to expand knowledge base", expanded=False):
         with open(pdf_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        st.success(f"✓ Uploaded: {uploaded_file.name}")
+        st.success(f"Uploaded: {uploaded_file.name}")
         
         # Check for duplicates
         try:
@@ -59,38 +60,39 @@ with st.expander("📄 Upload PDF to expand knowledge base", expanded=False):
             is_duplicate, prev_status = handler.check_duplicate(uploaded_file.name)
             
             if is_duplicate:
-                st.warning(f"⚠ This file was already processed (status: {prev_status})")
+                st.warning(f"This file was already processed (status: {prev_status})")
             else:
                 # Auto-run ingestion pipeline
                 st.info(
-                    "🔄 Processing PDF...\n\n"
-                    "Steps: Parsing → Chunking → Embedding → Indexing\n\n"
-                    "⏱ Note: Embedding is slow on CPU (~2h for 2k chunks). "
+                    "Processing PDF...\n\n"
+                    "Steps: Parsing → Chunking → Embedding → Indexing to Chroma\n\n"
+                    "Note: Embedding is slow on CPU (~30-60 min per 100 pages). "
                     "For faster embedding on GPU, use Google Colab or a machine with CUDA."
                 )
                 
                 try:
-                    # Run ingestion (timeout increased to 2 hours for embedding)
+                    # Run ingestion with virtual environment's Python (timeout: 3 hours max)
+                    python_exe = sys.executable  # Uses the same Python as current session
                     result = subprocess.run(
-                        ["python", "-m", "src.ingestion.ingest", str(pdf_path)],
+                        [python_exe, "-m", "src.ingestion.ingest", str(pdf_path)],
                         capture_output=True,
                         text=True,
-                        timeout=7200,  # 2 hours max
+                        timeout=10800,  # 3 hours
                     )
                     
                     if result.returncode == 0:
                         st.success(
-                            "✓ Done! PDF has been parsed, chunked, embedded, and indexed.\n\n"
+                            "Done! PDF has been parsed, chunked, embedded, and indexed to Chroma.\n\n"
                             "You can now ask questions about this document."
                         )
                         st.balloons()
                     else:
                         st.error(f"Ingestion failed:\n{result.stderr}")
                         if result.stdout:
-                            st.write("Output:\n" + result.stdout[-1000:])  # Last 1000 chars
+                            st.write("Output:\n" + result.stdout[-500:])  # Last 500 chars
                 
                 except subprocess.TimeoutExpired:
-                    st.error("Ingestion took too long (>2 hours). PDF may be very large. Check backend logs.")
+                    st.error("Ingestion took too long (>3 hours). PDF may be very large. Check backend logs.")
                 except Exception as e:
                     st.error(f"Error during ingestion: {e}")
         except Exception as e:
@@ -107,21 +109,21 @@ chat_placeholder = st.container()
 with chat_placeholder:
     for msg in st.session_state.chat_history:
         # User message
-        st.markdown(f"**🧑 You:** {msg['question']}")
+        st.markdown(f"**You:** {msg['question']}")
 
         # AI response
-        st.markdown(f"**🤖 Assistant:**")
+        st.markdown(f"**Assistant:**")
         st.markdown(msg['answer'])
 
         # Evidence indicator
         if msg["supported"]:
-            st.success("✅ Evidence found")
+            st.success("Evidence found")
         else:
-            st.warning("⚠️ Low confidence")
+            st.warning("Low confidence")
 
         # Sources
         if msg["sources"]:
-            st.markdown(f"**📚 Sources ({len(msg['sources'])}):**")
+            st.markdown(f"**Sources ({len(msg['sources'])}):**")
             for src in msg["sources"]:
                 source_type = src.get("source_type", "3gpp_official")
                 
@@ -132,7 +134,7 @@ with chat_placeholder:
                     page_end = src.get("page_end", "")
                     page_range = f"{page_start}-{page_end}" if page_end else page_start
                     sid = src.get("id", "")
-                    label = f"{sid} 📄 {filename} · §{section} · pp. {page_range}"
+                    label = f"{sid} {filename} · Section {section} · pp. {page_range}"
                 else:
                     spec = src.get("spec", "—")
                     section = src.get("section", "—")
@@ -141,7 +143,7 @@ with chat_placeholder:
                     page_range = f"{page_start}-{page_end}" if page_end else page_start
                     title = src.get("title", "")
                     sid = src.get("id", "")
-                    label = f"{sid} TS {spec} Release {src.get('release', '17')} · §{section} · pp. {page_range}"
+                    label = f"{sid} TS {spec} Release {src.get('release', '17')} · Section {section} · pp. {page_range}"
                     if title:
                         label += f" — {title}"
                 
@@ -202,28 +204,28 @@ if send_btn and question.strip():
             st.rerun()
             
         except requests.exceptions.ConnectionError:
-            st.error("❌ Cannot reach the API. Make sure the backend is running:\n`uvicorn src.api:app --port 8000`")
+            st.error("Cannot reach the API. Make sure the backend is running:\n`uvicorn src.api:app --port 8000`")
         except requests.exceptions.Timeout:
-            st.error("❌ Request timed out. The backend may be slow or overloaded.")
+            st.error("Request timed out. The backend may be slow or overloaded.")
         except requests.exceptions.HTTPError as e:
-            st.error(f"❌ API error: {e.response.text}")
+            st.error(f"API error: {e.response.text}")
         except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+            st.error(f"Error: {str(e)}")
 
 # ── sidebar info ───────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 📋 About")
+    st.markdown("### About")
     st.markdown("""
 This chatbot answers questions about **3GPP Release 17** 5G core network specifications.
 
 **Features:**
-- 📚 Answers grounded in official specs
-- 🔍 Full citation with page numbers
-- 📄 Expandable source text
-- ✅ No hallucination — only real evidence
+- Answers grounded in official specs
+- Full citation with page numbers
+- Expandable source text
+- No hallucination — only real evidence
 
 **Specs included:**
 - TS 23.501 — System Architecture
 - TS 23.502 — Procedures
-- TS 23.503 — Service‑Based Architecture
+- TS 23.503 — Service-Based Architecture
 """)

@@ -38,6 +38,7 @@ CACHE_PATH = Path("data/embedding_cache.json")  # {chunk_id: text_sha1}
 # sentence-transformers/all-MiniLM-L6-v2 produces 384-dim vectors
 # all-MiniLM doesn't use document prefixes
 BATCH_SIZE = 128
+DOCUMENT_PREFIX = ""  # all-MiniLM-L6-v2 doesn't require prefixes
 
 
 def _sha1(text: str) -> str:
@@ -100,7 +101,7 @@ def embed(chunks: list[dict], model: SentenceTransformer) -> tuple[np.ndarray, l
 
     # Assemble final array in input order
     dim = next(iter(old_embs.values())).shape[0] if old_embs else (
-          next(iter(new_embs.values())).shape[0] if new_embs else 768)
+          next(iter(new_embs.values())).shape[0] if new_embs else 384)  # all-MiniLM-L6-v2 outputs 384-dim
 
     ordered_ids = [c["chunk_id"] for c in chunks]
     array = np.zeros((len(chunks), dim), dtype=np.float32)
