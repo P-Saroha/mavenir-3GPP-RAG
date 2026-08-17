@@ -11,112 +11,76 @@ minimise hallucination risk.
 
 ```mermaid
 flowchart TD
-    Start["🚀 Start"] --> UI["Streamlit UI<br/>Web Interface"]
+    Start[User Query] --> Memory["Memory Node<br/>Cache context in embeddings"]
     
-    UI --> UserAction{User Action}
+    Memory --> Router{Intent Router<br/>Classify Query Type}
     
-    %% INGESTION PATH
-    UserAction -->|Upload PDF| Upload["📤 File Upload<br/>Select from data/pdfs/"]
-    Upload --> IngestChoice{Ingest Mode}
-    IngestChoice -->|Full Pipeline| IngestFull["python -m src.ingestion.ingest"]
-    IngestChoice -->|Skip Embedding| IngestSkip["--skip-embed flag"]
+    Router -->|Greeting/Smalltalk| Greet["Reply: Contextual Response"]
     
-    %% PARSING STAGE
-    IngestFull --> Parser["🔍 Parser Stage<br/>src/ingestion/parser.py"]
-    IngestSkip --> Parser
-    Parser --> CheckParsed["Check parsed.jsonl<br/>Skip already-parsed PDFs"]
-    CheckParsed --> Extract["Extract Sections<br/>Clause-aware splitting<br/>PyMuPDF"]
-    Extract --> Sections["10,567 Sections<br/>TS 23.501/502/503"]
+    Router -->|Corpus Query| QueryCheck{Query Analysis<br/>is_clear?}
     
-    %% CHUNKING STAGE
-    Sections --> Chunker["📚 Chunker Stage<br/>src/ingestion/chunker.py"]
-    Chunker --> ChunkLogic["Smart Chunking<br/>450-700 words target<br/>Merge small sections<br/>Split large sections"]
-    ChunkLogic --> AddHeaders["Add Section Headers<br/>[23.502 §4.3.2.1<br/>Call Control Procedures]"]
-    AddHeaders --> Chunks["1,972 Chunks<br/>Deterministic IDs<br/>SHA-256 hash"]
+    Router -->|Out of Scope| OOS["Reply: Outside 3GPP scope"]
     
-    %% EMBEDDING STAGE
-    Chunks --> Embedder["🧠 Embedder Stage<br/>src/retrieval/embedder.py"]
-    Embedder --> CheckCache["Check embedding cache<br/>embedding_ids.json"]
-    CheckCache --> EmbedNew["Encode New Chunks<br/>nomic-embed-text-v1.5<br/>768-dim vectors<br/>GPU: 3min / CPU: 2hr"]
-    EmbedNew --> EmbedStore["Store Embeddings<br/>embeddings.npy<br/>embedding_ids.json"]
+    QueryCheck -->|Ambiguous/Vague| Rewrite["Query Rewriting<br/>LLM clarifies intent<br/>e.g: 'NF' → 'Network Function'"]
     
-    %% INDEXING STAGE
-    EmbedStore --> Indexer["⚡ Indexer Stage<br/>src/retrieval/index_dense.py"]
-    Indexer --> BuildBM25["Build BM25 Index<br/>Tokenize section text<br/>Keyword matching"]
-    BuildBM25 --> UpsertQdrant["Upsert to Qdrant<br/>Deterministic point IDs<br/>Safe idempotent operation"]
-    UpsertQdrant --> IndexDone["✓ Corpus Ready<br/>Vector + Sparse Index"]
+    QueryCheck -->|Clear/Specific| Retrieve["Retrieval Pipeline<br/>BM25 + Dense Search"]
     
-    %% QUERY PATH
-    UserAction -->|Ask Question| QuestionInput["❓ User Question<br/>textarea input"]
-    IndexDone --> QuestionInput
+    Rewrite --> Retrieve
     
-    %% RETRIEVAL STAGE
-    QuestionInput --> Retrieval["🔎 Retrieval Stage<br/>src/rag.py"]
-    Retrieval --> BM25Search["BM25 Search<br/>Keyword matching<br/>Top-30 candidates"]
-    Retrieval --> DenseSearch["Dense Search<br/>Qdrant vector search<br/>Top-30 candidates"]
+    Retrieve --> Hybrid["Hybrid Search<br/>Keyword top-30<br/>Vector top-30"]
     
-    %% FUSION & RERANKING
-    BM25Search --> Fusion["🔀 RRF Fusion<br/>Reciprocal Rank<br/>Deduplication"]
-    DenseSearch --> Fusion
-    Fusion --> FusedCandidates["60 Fused Candidates<br/>Deduplicated & ranked"]
+    Hybrid --> Fusion["RRF Fusion<br/>Reciprocal Rank<br/>Deduplication"]
     
-    FusedCandidates --> Reranker["🎯 Reranking Stage<br/>cross-encoder/ms-marco"]
-    Reranker --> RerankerScore["Cross-Encoder Scoring<br/>Semantic relevance"]
-    RerankerScore --> RerankedTop10["Top-10 Reranked<br/>Highest relevance first"]
+    Fusion --> Rerank["Reranking Stage<br/>Cross-Encoder Scoring"]
     
-    %% DIVERSITY & QUALITY GATE
-    RerankedTop10 --> MMR["🌈 MMR Filter<br/>Maximal Marginal Relevance<br/>λ=0.5"]
-    MMR --> FinalEvidence["Top-6 Final Evidence<br/>Diverse, relevant chunks"]
+    Rerank --> QualityGate{Quality Gate<br/>Check Evidence}
     
-    FinalEvidence --> QualityGate{Quality Gate<br/>Check}
-    QualityGate -->|Reranker ≥ 1.0<br/>Count ≥ 2| HasEvidence["✓ Sufficient Evidence"]
-    QualityGate -->|Reranker < 1.0<br/>OR Count < 2| NoEvidence["✗ Insufficient Evidence"]
+    QualityGate -->|Score < 1.0<br/>Count < 2| ReviewContext["HITL Review<br/>Ask user to verify"]
     
-    %% GENERATION PATH - WITH EVIDENCE
-    HasEvidence --> LLMPrompt["📝 LLM Prompt<br/>Evidence + Context<br/>System prompt configured"]
-    LLMPrompt --> LLMGen["Generate Answer<br/>Groq (primary)<br/>Grok API (alt)<br/>Ollama (fallback)"]
+    ReviewContext -->|Approved| Generate["LLM Generation<br/>Groq/Grok/Ollama"]
     
-    %% GENERATION PATH - NO EVIDENCE
-    NoEvidence --> Abstain["🚫 Abstain Response<br/>Cannot answer with<br/>sufficient evidence"]
+    ReviewContext -->|Insufficient| NoContext["Reply: Insufficient context<br/>in specifications"]
     
-    %% CITATION & VALIDATION
-    LLMGen --> CitationCheck["✓ Citation Validation<br/>Verify [S1]..[S6] tags<br/>Map to sections"]
-    Abstain --> CitationCheck
+    QualityGate -->|Score >= 1.0<br/>Count >= 2| Generate
     
-    CitationCheck --> FinalResponse["📋 Final Response<br/>Answer + Sources<br/>with verified citations"]
+    Generate --> CitationVal["Citation Validation<br/>Verify [S1]..[S6] tags<br/>Map to sections"]
     
-    %% API & UI RENDERING
-    FinalResponse --> API["🌐 FastAPI Response<br/>src/api:app"]
-    API --> Render["Render in Streamlit<br/>Markdown formatting<br/>Source links"]
-    Render --> UserDisplay["👤 User Display<br/>Question + Answer<br/>+ Sources"]
-    UserDisplay --> End["✅ Complete"]
+    CitationVal --> Dedup["Source Deduplication<br/>Remove redundant citations<br/>Keep diverse evidence"]
     
-    %% STYLING
-    style Start fill:#c8e6c9
-    style UI fill:#bbdefb
-    style Upload fill:#fff9c4
-    style Parser fill:#ffe0b2
-    style Chunker fill:#ffccbc
-    style Embedder fill:#f8bbd0
-    style Indexer fill:#e1bee7
-    style QuestionInput fill:#bbdefb
-    style Retrieval fill:#c5e1a5
-    style BM25Search fill:#c5e1a5
-    style DenseSearch fill:#c5e1a5
-    style Fusion fill:#fff9c4
-    style Reranker fill:#ffccbc
-    style MMR fill:#ffccbc
-    style QualityGate fill:#ffab91
-    style HasEvidence fill:#81c784
-    style NoEvidence fill:#e57373
-    style LLMGen fill:#ce93d8
-    style Abstain fill:#e57373
-    style CitationCheck fill:#ffeb3b
-    style FinalResponse fill:#81c784
-    style API fill:#64b5f6
-    style Render fill:#64b5f6
-    style UserDisplay fill:#c8e6c9
-    style End fill:#81c784
+    Dedup --> FinalResp["Format Response<br/>Answer + Sources<br/>Markdown rendering"]
+    
+    Greet --> FinalResp
+    
+    OOS --> FinalResp
+    
+    NoContext --> FinalResp
+    
+    FinalResp --> API["FastAPI Response<br/>JSON with metadata"]
+    
+    API --> StateStore["Store State<br/>SQLite conversation log<br/>Embedding cache"]
+    
+    StateStore --> UI["Streamlit Display<br/>Render answer + citations"]
+    
+    UI --> End[User Sees Result]
+    
+    style Start fill:#e3f2fd
+    style Memory fill:#e3f2fd
+    style Router fill:#fff3e0
+    style QueryCheck fill:#fff3e0
+    style QualityGate fill:#fff3e0
+    style Retrieve fill:#e8f5e9
+    style Hybrid fill:#e8f5e9
+    style Fusion fill:#e8f5e9
+    style Rerank fill:#e8f5e9
+    style ReviewContext fill:#ffe0b2
+    style Generate fill:#f3e5f5
+    style CitationVal fill:#f3e5f5
+    style Dedup fill:#f3e5f5
+    style FinalResp fill:#fce4ec
+    style API fill:#c8e6c9
+    style StateStore fill:#b3e5fc
+    style UI fill:#b3e5fc
+    style End fill:#a5d6a7
 ```
 
 ---
