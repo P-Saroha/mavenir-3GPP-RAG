@@ -36,50 +36,73 @@ minimise hallucination risk.
 
 ## System Architecture (Workflow)
 
+
 ```mermaid
 flowchart TD
-    A1["PDFs<br/>data/pdfs/"] -->|PyMuPDF<br/>Strip headers| A2["Parsed Sections<br/>10,567"]
-    A2 -->|Regex detect<br/>4.2.1 pattern| A3["Extract Metadata<br/>spec, section, page"]
-    A3 -->|Write to| A4["parsed.jsonl"]
-    A4 -->|Skip already-parsed| A5["NEW sections"]
-    A5 -->|Group by spec| A6["Chunker"]
-    A6 -->|TARGET=450<br/>MAX=700 words| A7["Smart Split<br/>+Overlap 50w"]
-    A7 -->|SHA256 hash<br/>ID| A8["chunks.jsonl<br/>1,972 chunks"]
-    A8 -->|Add header<br/>spec §section| A9["Header Prefix<br/>[23.501 §4.2.1]"]
-    A9 -->|Load model<br/>nomic-embed-text| A10["Encode Chunks<br/>768-dim vectors"]
-    A10 -->|Cache check| A11["embeddings.npy"]
-    A11 -->|UUID from<br/>chunk_id| A12["Qdrant Points"]
-    A12 -->|+BM25| A13["Ready to Query"]
+    subgraph G1 [" "]
+        A1["PDFs<br/>data/pdfs/"] -->|PyMuPDF<br/>Strip headers| A2["Parsed Sections<br/>10,567"]
+        A2 -->|Regex detect<br/>4.2.1 pattern| A3["Extract Metadata<br/>spec, section, page"]
+        A3 -->|Write to| A4["parsed.jsonl"]
+        A4 -->|Skip already-parsed| A5["NEW sections"]
+        A5 -->|Group by spec| A6["Chunker"]
+        A6 -->|TARGET=450<br/>MAX=700 words| A7["Smart Split<br/>+Overlap 50w"]
+    end
 
-    A13 -.->|Query| Q0["User Query"]
-    Q0 --> Q1["BM25 Search<br/>Top-30"]
-    Q0 --> Q2["Dense Search<br/>Top-30"]
-    Q1 --> Q3["RRF Fusion<br/>k=60"]
-    Q2 --> Q3
-    Q3 --> Q4["60 Fused<br/>Deduplicated"]
-    Q4 -->|rerank_score| Q5["Cross-Encoder<br/>Top-10"]
-    Q5 -->|mmr_score| Q6["MMR Filter<br/>Top-6"]
+    subgraph G2 [" "]
+        A8["chunks.jsonl<br/>1,972 chunks"] -->|Add header<br/>spec §section| A9["Header Prefix<br/>[23.501 §4.2.1]"]
+        A9 -->|Load model<br/>nomic-embed-text| A10["Encode Chunks<br/>768-dim vectors"]
+        A10 -->|Cache check| A11["embeddings.npy"]
+        A11 -->|UUID from<br/>chunk_id| A12["Qdrant Points"]
+        A12 -->|+BM25| A13["Ready to Query"]
+    end
 
-    Q6 --> QG1{"Count >= 2?<br/>Score >= 1.0?<br/>Metadata OK?"}
-    QG1 -->|PASS| QG2["Evidence<br/>Supported"]
-    QG1 -->|FAIL| QG3["Cannot Answer"]
+    subgraph G3 [" "]
+        Q0["User Query"] --> Q1["BM25 Search<br/>Top-20"]
+        Q0 --> Q2["Dense Search<br/>Top-20"]
+        Q1 --> Q3["RRF Fusion<br/>k=60"]
+        Q2 --> Q3
+        Q3 --> Q4["Fused Top-30<br/>Deduplicated"]
+        Q4 -->|rerank_score| Q5["Cross-Encoder<br/>Top-10"]
+        Q5 -->|mmr_score| Q6["MMR Filter<br/>Top-6"]
+    end
 
-    QG2 --> E1["Expand ±1<br/>chunks"]
-    E1 --> E2["Cap 3500<br/>words"]
-    E2 --> E3["Build<br/>S1..SN"]
+    subgraph G4 [" "]
+        QG1{"Count >= 2?<br/>Score >= 1.0?<br/>Metadata OK?"}
+        QG1 -->|PASS| QG2["Evidence<br/>Supported"]
+        QG1 -->|FAIL| QG3["Cannot Answer"]
+        QG2 --> E1["Expand ±1<br/>chunks"]
+        E1 --> E2["Cap 3500<br/>words"]
+        E2 --> E3["Build<br/>S1..SN"]
+    end
 
-    E3 --> G1["System Prompt<br/>Use ONLY S1..SN"]
-    G1 --> G2["LLM Call<br/>Groq/Grok"]
-    G2 --> G3["Parse [Sx]<br/>tags"]
-    G3 --> G4["Validate IDs<br/>Replace Invalid"]
-    G4 --> G5["Deduplicate<br/>by spec,section"]
+    subgraph G5 [" "]
+        Gen1["System Prompt<br/>Use ONLY S1..SN"] --> Gen2["LLM Call<br/>Groq/Grok"]
+        Gen2 --> Gen3["Parse [Sx]<br/>tags"]
+        Gen3 --> Gen4["Validate IDs<br/>Replace Invalid"]
+        Gen4 --> Gen5["Deduplicate<br/>by spec, section"]
+    end
 
-    QG3 --> R1["{answer,<br/>sources,<br/>supported}"]
-    G5 --> R1
-    R1 -->|FastAPI| R2["Streamlit<br/>Display"]
-    R2 -->|Render| R3["User Result"]
+    subgraph G6 [" "]
+        R1["{answer,<br/>sources,<br/>supported}"] -->|FastAPI| R2["Streamlit<br/>Display"]
+        R2 -->|Render| R3["User Result"]
+    end
+
+    A7 -->|SHA256 hash<br/>ID| A8
+    A13 -.->|Query| Q0
+    Q6 --> QG1
+    E3 --> Gen1
+    QG3 --> R1
+    Gen5 --> R1
     R3 -.->|Upload| A1
+
+    style G1 fill:none,stroke:none
+    style G2 fill:none,stroke:none
+    style G3 fill:none,stroke:none
+    style G4 fill:none,stroke:none
+    style G5 fill:none,stroke:none
+    style G6 fill:none,stroke:none
 ```
+
 ---
 
 ## 2. Problem Statement
