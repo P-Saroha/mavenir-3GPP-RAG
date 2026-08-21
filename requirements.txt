@@ -1,6 +1,7 @@
 pymupdf
 sentence-transformers
-qdrant-client>=1.19.0
+chromadb
+cross-encoder
 rank-bm25
 fastapi
 uvicorn
@@ -10,3 +11,4 @@ requests
 einops
 openai
 pytest
+numpy
