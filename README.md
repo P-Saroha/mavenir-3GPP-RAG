@@ -418,20 +418,119 @@ For issues:
 
 | Metric | Value |
 |--------|-------|
-| Total chunks | 1,980 |
-| Specs included | TS 23.501, TS 23.502, TS 23.503 (3GPP Release 17) |
+| Total chunks | 2,330 |
+| Specs included | TS 23.501 (818), TS 23.502 (940), TS 23.503 (214), TS 33.501 (350) - 3GPP Release 17 |
+| Pages covered | ~1,200+ pages of technical standards |
 | Embedding dimension | 384 (all-MiniLM-L6-v2) |
 | Database engine | Chroma (DuckDB + Parquet, persistent) |
 | Storage location | `./chroma_data/` (survives restarts) |
+| Embeddings file | `data/embeddings.npy` (3MB) |
 | Query response time | 3-4 seconds |
 
 ---
 
-## Future Enhancements
+## Future Improvements
 
-- [ ] Web UI authentication (FastAPI + JWT)
-- [ ] GPU acceleration for embeddings
-- [ ] Multi-spec search (R16, R15, etc.)
-- [ ] Conversation history/multi-turn QA
-- [ ] Batch processing API
-- [ ] Response caching for common questions
+### High Priority
+1. **Semantic Chunking**
+   - Replace fixed-size chunks with meaning-aware chunking
+   - Group related sentences by semantic similarity
+   - Impact: +1-2% retrieval improvement, better chunk coherence
+   - Effort: 2-3 hours implementation
+
+2. **User Feedback Loop**
+   - Add thumbs up/down on answers
+   - Track which queries users found helpful
+   - Use feedback to retrain reranker/embeddings
+   - Impact: Continuous quality improvement
+   - Effort: 1-2 hours
+
+3. **Retrieval Metrics & Evaluation**
+   - Implement MRR (Mean Reciprocal Rank) evaluation
+   - Track HitRate@K, NDCG for search quality
+   - Build labeled dataset of Q&A pairs with correct answers
+   - Impact: Quantify improvement, benchmark against baselines
+   - Effort: 4-5 hours (mainly labeling)
+
+### Medium Priority
+4. **Multi-Turn Conversation**
+   - Add chat history/context window
+   - Follow-up questions reference previous answers
+   - Implementation: Store conversation in session
+   - Impact: Better UX, more natural interactions
+   - Effort: 3-4 hours
+
+5. **Query Expansion**
+   - Automatically expand queries with synonyms
+   - Use domain knowledge (e.g., "AMF" = "Access and Mobility Management Function")
+   - Improve recall for acronyms
+   - Impact: +2-3% better search hits
+   - Effort: 2-3 hours
+
+6. **GPU Acceleration**
+   - Move embedding/reranking to GPU
+   - Use ONNX Runtime for inference
+   - Impact: 5-10x faster embedding, 2-3x faster reranking
+   - Effort: 2-3 hours (for CUDA setup)
+
+7. **Caching & Response Reuse**
+   - Cache common queries + answers
+   - Avoid redundant LLM calls
+   - Impact: 20-30% latency reduction for repeated queries
+   - Effort: 1-2 hours
+
+### Low Priority
+8. **Multi-Spec Search (R16, R15, R14)**
+   - Support older 3GPP releases
+   - Cross-release comparison queries
+   - Impact: Broader knowledge base
+   - Effort: 5-6 hours (per release to process)
+
+9. **Web UI Authentication**
+   - Add login/JWT tokens
+   - Per-user query history
+   - Impact: Production-ready security
+   - Effort: 2-3 hours
+
+10. **Batch API & Export**
+    - Process multiple queries in parallel
+    - Export answers to PDF/JSON
+    - Impact: Enterprise use cases
+    - Effort: 3-4 hours
+
+11. **Fine-tuned Embeddings**
+    - Train embeddings on 3GPP corpus
+    - Domain-specific semantic understanding
+    - Impact: +3-5% retrieval improvement
+    - Effort: 8-10 hours (requires labeled data + GPU)
+
+12. **LLM Fine-tuning**
+    - Fine-tune Llama-3 on 3GPP Q&A pairs
+    - Better 3GPP-specific answers
+    - Impact: More accurate, concise responses
+    - Effort: 12-16 hours (complex, requires data + infrastructure)
+
+### Infrastructure
+13. **Monitoring & Logging**
+    - Track query latency, error rates
+    - Monitor Groq API usage
+    - Dashboard: Query volume, top questions
+    - Effort: 3-4 hours
+
+14. **Automated Testing**
+    - Test suite with labeled queries
+    - CI/CD pipeline for code changes
+    - Regression testing on retrieval quality
+    - Effort: 4-5 hours
+
+15. **Docker Containerization**
+    - Containerize for easy deployment
+    - Add docker-compose.yml (already present)
+    - Impact: Production deployment, scalability
+    - Effort: 1-2 hours
+
+### Recommended Roadmap (by ROI)
+**Phase 1 (This week):** User feedback loop + caching (quick wins)
+**Phase 2 (Next sprint):** Semantic chunking + evaluation metrics
+**Phase 3 (Later):** Multi-turn conversation + GPU acceleration
+**Phase 4 (Future):** Fine-tuned embeddings (if needed)
