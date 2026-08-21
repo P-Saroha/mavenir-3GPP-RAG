@@ -422,31 +422,31 @@ This project indexes and retrieves information from the following 3GPP Release 1
 
 1. **TS 23.501 - System Architecture** (818 chunks)
    - File: `TS_23.501_R17_v17.13.0.pdf`
-   - Pages: ~350 pages
+   - Pages: 577 pages
    - Content: 5G core network architecture, network function descriptions, registration procedures
 
 2. **TS 23.502 - Procedures** (940 chunks)
    - File: `TS_23.502_R17_v17.13.0.pdf`
-   - Pages: ~450 pages
+   - Pages: 755 pages
    - Content: Detailed 5G procedures (registration, PDU session establishment, handover, service requests)
 
 3. **TS 23.503 - Service-Based Architecture** (214 chunks)
    - File: `TS_23.503_R17_v17.11.0.pdf`
-   - Pages: ~180 pages
+   - Pages: 151 pages
    - Content: Service-based architecture (SBA), HTTP/2 communication, service interactions
 
 4. **TS 33.501 - Security** (350 chunks)
    - File: `TS_33.501_R17_v17.14.0.pdf`
-   - Pages: ~290 pages
+   - Pages: 298 pages
    - Content: 5G security procedures, authentication, key derivation, subscriber protection
 
-**Total Coverage:** 2,330 unique chunks across ~1,270 pages of technical standards
+**Total Coverage:** 2,330 unique chunks across 1,781 pages of technical standards
 
 | Metric | Value |
 |--------|-------|
 | Total chunks | 2,330 |
 | Specs included | TS 23.501, TS 23.502, TS 23.503, TS 33.501 (3GPP Release 17) |
-| Pages covered | ~1,270 pages of technical standards |
+| Pages covered | 1,781 pages of technical standards |
 | Embedding dimension | 384 (all-MiniLM-L6-v2) |
 | Database engine | Chroma (DuckDB + Parquet, persistent) |
 | Storage location | `./chroma_data/` (survives restarts) |
