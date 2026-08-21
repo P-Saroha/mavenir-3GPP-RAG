@@ -534,3 +534,51 @@ For issues:
 **Phase 2 (Next sprint):** Semantic chunking + evaluation metrics
 **Phase 3 (Later):** Multi-turn conversation + GPU acceleration
 **Phase 4 (Future):** Fine-tuned embeddings (if needed)
+
+---
+
+## Technical Debt & Known Limitations
+
+### Current Limitations
+1. **Single-language support** - English only (can add multi-language)
+2. **No conversation memory** - Each query is independent
+3. **CPU-based embedding** - Slow on large datasets (30+ min per 100 pages)
+4. **No user authentication** - Open API (suitable for internal only)
+5. **Fixed-size chunks** - May split sentences awkwardly
+6. **Groq API dependency** - Needs internet, subject to rate limits
+7. **No A/B testing** - Can't compare different prompt versions
+
+### What Could Be Added Next
+- **Query Analytics Dashboard** - Track top queries, avg latency, error rates
+- **A/B Testing Framework** - Test different rerankers, embeddings, prompts
+- **Persistent Chat History** - Database to store conversations per user
+- **Advanced Filtering** - Filter by spec, section, date range, confidence
+- **Batch Processing** - Submit 100+ queries, get results in CSV
+- **Export Functionality** - Download answers as PDF/JSON with citations
+- **Prompt Engineering UI** - Tune system prompts without code changes
+- **Model Comparison** - Switch between Llama/Mixtral/GPT without restart
+- **Smart Caching** - Redis for query deduplication across users
+- **Confidence Scoring** - Show answer confidence (0-100%) to users
+- **Source Highlighting** - Visual highlight which parts of sources support answer
+- **Multi-modal Search** - Search by diagrams/images in specs
+- **Cross-document linking** - Show connections between TS 23.501 → TS 23.502
+- **Version Control** - Support multiple 3GPP releases simultaneously (R17 vs R18)
+- **Audit Logging** - Track who asked what, when (for compliance)
+- **API Rate Limiting** - Prevent abuse (if deployed publicly)
+- **Load Balancing** - Distribute queries across multiple Groq models
+
+### Performance Optimizations Available
+- Replace all-MiniLM with domain-optimized embeddings (DistilBERT fine-tuned on 3GPP)
+- Use ONNX Runtime for 2-3x faster inference
+- Add Redis caching layer for frequently asked questions
+- Implement query batching to reduce API calls
+- Use PostgreSQL pgvector instead of Chroma for scalability
+- Add vector quantization for 80% smaller embeddings file
+
+### Quality Improvements
+- Implement active learning (ask users to correct bad answers)
+- Add confidence thresholds per answer type
+- Use ensemble methods (combine multiple rerankers)
+- Implement fallback strategies (if primary answer fails, try alternative retrieval)
+- Add hallucination detection (compare LLM output vs actual sources)
+- Build adversarial test set to find edge cases
